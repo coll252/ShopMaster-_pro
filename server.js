@@ -30,10 +30,7 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  ssl:
-    process.env.DB_SSL === "true"
-      ? { rejectUnauthorized: false }
-      : undefined
+  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined
 };
 
 async function connectDB() {
@@ -58,8 +55,7 @@ async function columnExists(table, column) {
 
 async function safeAlter(table, column, sql) {
   try {
-    const exists = await columnExists(table, column);
-    if (!exists) {
+    if (!(await columnExists(table, column))) {
       await pool.query(sql);
       console.log(`Added missing column: ${table}.${column}`);
     }
@@ -85,8 +81,8 @@ async function initDatabase() {
       email VARCHAR(180) UNIQUE NOT NULL,
       phone VARCHAR(40),
       password VARCHAR(255) NOT NULL,
-      role ENUM('customer','admin','super_admin') DEFAULT 'customer',
-      status ENUM('active','blocked') DEFAULT 'active',
+      role VARCHAR(40) DEFAULT 'customer',
+      status VARCHAR(40) DEFAULT 'active',
       avatar TEXT,
       reset_token VARCHAR(255),
       reset_token_expiry DATETIME,
@@ -104,15 +100,20 @@ async function initDatabase() {
   await safeAlter("users", "last_login", "ALTER TABLE users ADD COLUMN last_login DATETIME");
   await safeAlter("users", "created_at", "ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
-  await safeModify(
-    `ALTER TABLE users MODIFY COLUMN role ENUM('customer','admin','super_admin') DEFAULT 'customer'`,
-    "users.role enum"
-  );
+  await safeModify("ALTER TABLE users MODIFY COLUMN role VARCHAR(40) DEFAULT 'customer'", "users.role varchar");
+  await safeModify("ALTER TABLE users MODIFY COLUMN status VARCHAR(40) DEFAULT 'active'", "users.status varchar");
 
-  await safeModify(
-    `ALTER TABLE users MODIFY COLUMN status ENUM('active','blocked') DEFAULT 'active'`,
-    "users.status enum"
-  );
+  await pool.query(`
+    UPDATE users 
+    SET role='customer' 
+    WHERE role IS NULL OR role='' OR role NOT IN ('customer','admin','super_admin')
+  `);
+
+  await pool.query(`
+    UPDATE users 
+    SET status='active' 
+    WHERE status IS NULL OR status='' OR status NOT IN ('active','blocked')
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -135,7 +136,7 @@ async function initDatabase() {
       stock INT DEFAULT 0,
       image TEXT,
       featured BOOLEAN DEFAULT FALSE,
-      status ENUM('active','draft','archived') DEFAULT 'active',
+      status VARCHAR(40) DEFAULT 'active',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -143,17 +144,20 @@ async function initDatabase() {
   await safeAlter("products", "category_id", "ALTER TABLE products ADD COLUMN category_id INT NULL");
   await safeAlter("products", "sku", "ALTER TABLE products ADD COLUMN sku VARCHAR(100)");
   await safeAlter("products", "description", "ALTER TABLE products ADD COLUMN description TEXT");
+  await safeAlter("products", "price", "ALTER TABLE products ADD COLUMN price DECIMAL(12,2) NOT NULL DEFAULT 0");
   await safeAlter("products", "discount", "ALTER TABLE products ADD COLUMN discount DECIMAL(12,2) DEFAULT 0");
   await safeAlter("products", "stock", "ALTER TABLE products ADD COLUMN stock INT DEFAULT 0");
   await safeAlter("products", "image", "ALTER TABLE products ADD COLUMN image TEXT");
   await safeAlter("products", "featured", "ALTER TABLE products ADD COLUMN featured BOOLEAN DEFAULT FALSE");
   await safeAlter("products", "status", "ALTER TABLE products ADD COLUMN status VARCHAR(40) DEFAULT 'active'");
   await safeAlter("products", "created_at", "ALTER TABLE products ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+  await safeModify("ALTER TABLE products MODIFY COLUMN status VARCHAR(40) DEFAULT 'active'", "products.status varchar");
 
-  await safeModify(
-    `ALTER TABLE products MODIFY COLUMN status ENUM('active','draft','archived') DEFAULT 'active'`,
-    "products.status enum"
-  );
+  await pool.query(`
+    UPDATE products 
+    SET status='active' 
+    WHERE status IS NULL OR status='' OR status NOT IN ('active','draft','archived')
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS cart_items (
@@ -177,6 +181,8 @@ async function initDatabase() {
     )
   `);
 
+  await safeAlter("wishlist", "created_at", "ALTER TABLE wishlist ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -187,8 +193,8 @@ async function initDatabase() {
       tax DECIMAL(12,2) DEFAULT 0,
       discount DECIMAL(12,2) DEFAULT 0,
       payment_method VARCHAR(80),
-      payment_status ENUM('pending','paid','failed','refunded') DEFAULT 'pending',
-      order_status ENUM('pending','processing','packed','shipped','delivered','cancelled','returned') DEFAULT 'pending',
+      payment_status VARCHAR(40) DEFAULT 'pending',
+      order_status VARCHAR(40) DEFAULT 'pending',
       address TEXT,
       phone VARCHAR(40),
       notes TEXT,
@@ -197,6 +203,8 @@ async function initDatabase() {
   `);
 
   await safeAlter("orders", "order_code", "ALTER TABLE orders ADD COLUMN order_code VARCHAR(80) UNIQUE");
+  await safeAlter("orders", "user_id", "ALTER TABLE orders ADD COLUMN user_id INT NULL");
+  await safeAlter("orders", "total", "ALTER TABLE orders ADD COLUMN total DECIMAL(12,2) DEFAULT 0");
   await safeAlter("orders", "shipping_fee", "ALTER TABLE orders ADD COLUMN shipping_fee DECIMAL(12,2) DEFAULT 0");
   await safeAlter("orders", "tax", "ALTER TABLE orders ADD COLUMN tax DECIMAL(12,2) DEFAULT 0");
   await safeAlter("orders", "discount", "ALTER TABLE orders ADD COLUMN discount DECIMAL(12,2) DEFAULT 0");
@@ -208,15 +216,8 @@ async function initDatabase() {
   await safeAlter("orders", "notes", "ALTER TABLE orders ADD COLUMN notes TEXT");
   await safeAlter("orders", "created_at", "ALTER TABLE orders ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
-  await safeModify(
-    `ALTER TABLE orders MODIFY COLUMN order_status ENUM('pending','processing','packed','shipped','delivered','cancelled','returned') DEFAULT 'pending'`,
-    "orders.order_status enum"
-  );
-
-  await safeModify(
-    `ALTER TABLE orders MODIFY COLUMN payment_status ENUM('pending','paid','failed','refunded') DEFAULT 'pending'`,
-    "orders.payment_status enum"
-  );
+  await safeModify("ALTER TABLE orders MODIFY COLUMN order_status VARCHAR(40) DEFAULT 'pending'", "orders.order_status varchar");
+  await safeModify("ALTER TABLE orders MODIFY COLUMN payment_status VARCHAR(40) DEFAULT 'pending'", "orders.payment_status varchar");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS order_items (
@@ -229,7 +230,11 @@ async function initDatabase() {
     )
   `);
 
+  await safeAlter("order_items", "order_id", "ALTER TABLE order_items ADD COLUMN order_id INT NOT NULL");
+  await safeAlter("order_items", "product_id", "ALTER TABLE order_items ADD COLUMN product_id INT NULL");
   await safeAlter("order_items", "product_name", "ALTER TABLE order_items ADD COLUMN product_name VARCHAR(180)");
+  await safeAlter("order_items", "quantity", "ALTER TABLE order_items ADD COLUMN quantity INT");
+  await safeAlter("order_items", "price", "ALTER TABLE order_items ADD COLUMN price DECIMAL(12,2)");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payments (
@@ -240,7 +245,7 @@ async function initDatabase() {
       amount DECIMAL(12,2),
       phone VARCHAR(40),
       transaction_code VARCHAR(150),
-      status ENUM('pending','paid','failed','refunded') DEFAULT 'pending',
+      status VARCHAR(40) DEFAULT 'pending',
       raw_response JSON NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -248,13 +253,10 @@ async function initDatabase() {
 
   await safeAlter("payments", "phone", "ALTER TABLE payments ADD COLUMN phone VARCHAR(40)");
   await safeAlter("payments", "transaction_code", "ALTER TABLE payments ADD COLUMN transaction_code VARCHAR(150)");
-  await safeAlter("payments", "raw_response", "ALTER TABLE payments ADD COLUMN raw_response JSON NULL");
   await safeAlter("payments", "status", "ALTER TABLE payments ADD COLUMN status VARCHAR(40) DEFAULT 'pending'");
-
-  await safeModify(
-    `ALTER TABLE payments MODIFY COLUMN status ENUM('pending','paid','failed','refunded') DEFAULT 'pending'`,
-    "payments.status enum"
-  );
+  await safeAlter("payments", "raw_response", "ALTER TABLE payments ADD COLUMN raw_response JSON NULL");
+  await safeAlter("payments", "created_at", "ALTER TABLE payments ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+  await safeModify("ALTER TABLE payments MODIFY COLUMN status VARCHAR(40) DEFAULT 'pending'", "payments.status varchar");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS coupons (
@@ -274,10 +276,12 @@ async function initDatabase() {
       product_id INT,
       rating INT,
       comment TEXT,
-      status ENUM('pending','approved','rejected') DEFAULT 'pending',
+      status VARCHAR(40) DEFAULT 'pending',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await safeModify("ALTER TABLE reviews MODIFY COLUMN status VARCHAR(40) DEFAULT 'pending'", "reviews.status varchar");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS invoices (
@@ -285,7 +289,7 @@ async function initDatabase() {
       order_id INT,
       invoice_code VARCHAR(80),
       amount DECIMAL(12,2),
-      status ENUM('unpaid','paid','cancelled') DEFAULT 'unpaid',
+      status VARCHAR(40) DEFAULT 'unpaid',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -293,11 +297,8 @@ async function initDatabase() {
   await safeAlter("invoices", "invoice_code", "ALTER TABLE invoices ADD COLUMN invoice_code VARCHAR(80)");
   await safeAlter("invoices", "amount", "ALTER TABLE invoices ADD COLUMN amount DECIMAL(12,2)");
   await safeAlter("invoices", "status", "ALTER TABLE invoices ADD COLUMN status VARCHAR(40) DEFAULT 'unpaid'");
-
-  await safeModify(
-    `ALTER TABLE invoices MODIFY COLUMN status ENUM('unpaid','paid','cancelled') DEFAULT 'unpaid'`,
-    "invoices.status enum"
-  );
+  await safeAlter("invoices", "created_at", "ALTER TABLE invoices ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+  await safeModify("ALTER TABLE invoices MODIFY COLUMN status VARCHAR(40) DEFAULT 'unpaid'", "invoices.status varchar");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -305,10 +306,12 @@ async function initDatabase() {
       user_id INT NULL,
       subject VARCHAR(180),
       message TEXT,
-      status ENUM('open','replied','closed') DEFAULT 'open',
+      status VARCHAR(40) DEFAULT 'open',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await safeModify("ALTER TABLE messages MODIFY COLUMN status VARCHAR(40) DEFAULT 'open'", "messages.status varchar");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS activity_logs (
@@ -363,26 +366,16 @@ async function initDatabase() {
 
   if (adminRows.length === 0) {
     const hashed = await bcrypt.hash(adminPassword, 12);
-
     await pool.query(
-      `
-      INSERT INTO users (name,email,phone,password,role,status)
-      VALUES (?,?,?,?,?,?)
-      `,
+      "INSERT INTO users (name,email,phone,password,role,status) VALUES (?,?,?,?,?,?)",
       [adminName, adminEmail, adminPhone, hashed, "super_admin", "active"]
     );
-
     console.log("Super admin created from .env");
   } else {
     await pool.query(
-      `
-      UPDATE users 
-      SET role='super_admin', status='active', phone=COALESCE(phone, ?)
-      WHERE email=?
-      `,
-      [adminPhone, adminEmail]
+      "UPDATE users SET role=?, status=?, phone=? WHERE email=?",
+      ["super_admin", "active", adminPhone, adminEmail]
     );
-
     console.log("Existing admin account upgraded to super_admin");
   }
 
@@ -391,11 +384,7 @@ async function initDatabase() {
 
 function createToken(user) {
   return jwt.sign(
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role
-    },
+    { id: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET || "change_this_secret",
     { expiresIn: "7d" }
   );
@@ -410,13 +399,11 @@ function auth(roles = []) {
       const token = header.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET || "change_this_secret");
 
-      const [rows] = await pool.query(
-        "SELECT id,email,role,status FROM users WHERE id=?",
-        [decoded.id]
-      );
+      const [rows] = await pool.query("SELECT id,email,role,status FROM users WHERE id=?", [
+        decoded.id
+      ]);
 
       const user = rows[0];
-
       if (!user) return res.status(401).json({ message: "User no longer exists" });
       if (user.status !== "active") return res.status(403).json({ message: "Account blocked" });
 
@@ -427,7 +414,7 @@ function auth(roles = []) {
       req.user = user;
       next();
     } catch {
-      return res.status(401).json({ message: "Invalid or expired token" });
+      res.status(401).json({ message: "Invalid or expired token" });
     }
   };
 }
@@ -462,10 +449,11 @@ async function sendEmail(to, subject, html) {
 
 async function logAction(userId, action, req) {
   try {
-    await pool.query(
-      "INSERT INTO activity_logs (user_id, action, ip_address) VALUES (?,?,?)",
-      [userId || null, action, req?.ip || ""]
-    );
+    await pool.query("INSERT INTO activity_logs (user_id, action, ip_address) VALUES (?,?,?)", [
+      userId || null,
+      action,
+      req?.ip || ""
+    ]);
   } catch {}
 }
 
@@ -482,7 +470,6 @@ function makeInvoiceCode() {
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { name, email, phone, password } = req.body;
-
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, email and password are required" });
     }
@@ -494,11 +481,7 @@ app.post("/api/auth/register", async (req, res) => {
       [name, email, phone || "", hashed, "customer", "active"]
     );
 
-    await sendEmail(
-      email,
-      "Welcome to ShopMaster Pro",
-      `<h2>Welcome ${name}</h2><p>Your customer account was created successfully.</p>`
-    );
+    await sendEmail(email, "Welcome to ShopMaster Pro", `<h2>Welcome ${name}</h2>`);
 
     res.json({ message: "Account created successfully. You can login now." });
   } catch (err) {
@@ -522,7 +505,6 @@ app.post("/api/auth/login", async (req, res) => {
     await pool.query("UPDATE users SET last_login=NOW() WHERE id=?", [user.id]);
 
     const token = createToken(user);
-
     await logAction(user.id, `${user.role} logged in`, req);
 
     await sendEmail(
@@ -554,23 +536,23 @@ app.post("/api/auth/forgot-password", async (req, res) => {
 
     const [rows] = await pool.query("SELECT * FROM users WHERE email=?", [email]);
     const user = rows[0];
-
     if (!user) return res.status(404).json({ message: "Email not found" });
 
     const resetToken = crypto.randomBytes(32).toString("hex");
     const expiry = new Date(Date.now() + 15 * 60 * 1000);
 
-    await pool.query(
-      "UPDATE users SET reset_token=?, reset_token_expiry=? WHERE id=?",
-      [resetToken, expiry, user.id]
-    );
+    await pool.query("UPDATE users SET reset_token=?, reset_token_expiry=? WHERE id=?", [
+      resetToken,
+      expiry,
+      user.id
+    ]);
 
     const link = `${process.env.APP_URL || "http://localhost:" + PORT}?reset=${resetToken}`;
 
     await sendEmail(
       user.email,
       "Password Reset",
-      `<h2>Password Reset</h2><p>Click below to reset your password:</p><a href="${link}">${link}</a>`
+      `<h2>Password Reset</h2><a href="${link}">${link}</a>`
     );
 
     res.json({ message: "Password reset email sent" });
@@ -589,7 +571,6 @@ app.post("/api/auth/reset-password", async (req, res) => {
     );
 
     const user = rows[0];
-
     if (!user) return res.status(400).json({ message: "Invalid or expired reset token" });
 
     const hashed = await bcrypt.hash(password, 12);
@@ -655,17 +636,15 @@ app.get("/api/cart", auth(["customer", "admin", "super_admin"]), async (req, res
 app.post("/api/cart", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   try {
     const { product_id, quantity } = req.body;
-    const qty = Number(quantity || 1);
+    const qty = Math.max(1, Number(quantity || 1));
 
-    const [products] = await pool.query(
-      "SELECT * FROM products WHERE id=? AND status='active'",
-      [product_id]
-    );
+    const [products] = await pool.query("SELECT * FROM products WHERE id=? AND status='active'", [
+      product_id
+    ]);
 
     const product = products[0];
-
     if (!product) return res.status(404).json({ message: "Product not found" });
-    if (product.stock < qty) return res.status(400).json({ message: "Insufficient stock" });
+    if (Number(product.stock) < qty) return res.status(400).json({ message: "Insufficient stock" });
 
     const [existing] = await pool.query(
       "SELECT * FROM cart_items WHERE user_id=? AND product_id=?",
@@ -673,15 +652,17 @@ app.post("/api/cart", auth(["customer", "admin", "super_admin"]), async (req, re
     );
 
     if (existing.length) {
-      await pool.query(
-        "UPDATE cart_items SET quantity = quantity + ? WHERE user_id=? AND product_id=?",
-        [qty, req.user.id, product_id]
-      );
+      await pool.query("UPDATE cart_items SET quantity = quantity + ? WHERE user_id=? AND product_id=?", [
+        qty,
+        req.user.id,
+        product_id
+      ]);
     } else {
-      await pool.query(
-        "INSERT INTO cart_items (user_id,product_id,quantity) VALUES (?,?,?)",
-        [req.user.id, product_id, qty]
-      );
+      await pool.query("INSERT INTO cart_items (user_id,product_id,quantity) VALUES (?,?,?)", [
+        req.user.id,
+        product_id,
+        qty
+      ]);
     }
 
     res.json({ message: "Added to cart" });
@@ -710,10 +691,10 @@ app.delete("/api/cart/:id", auth(["customer", "admin", "super_admin"]), async (r
 /* WISHLIST */
 
 app.post("/api/wishlist", auth(["customer", "admin", "super_admin"]), async (req, res) => {
-  const [existing] = await pool.query(
-    "SELECT * FROM wishlist WHERE user_id=? AND product_id=?",
-    [req.user.id, req.body.product_id]
-  );
+  const [existing] = await pool.query("SELECT * FROM wishlist WHERE user_id=? AND product_id=?", [
+    req.user.id,
+    req.body.product_id
+  ]);
 
   if (!existing.length) {
     await pool.query("INSERT INTO wishlist (user_id,product_id) VALUES (?,?)", [
@@ -753,12 +734,12 @@ app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, 
     let subtotal = 0;
 
     for (const item of cart) {
-      if (item.quantity > item.stock) {
+      if (Number(item.quantity) > Number(item.stock)) {
         await connection.rollback();
         return res.status(400).json({ message: `${item.name} has insufficient stock` });
       }
 
-      subtotal += (Number(item.price) - Number(item.discount || 0)) * item.quantity;
+      subtotal += (Number(item.price) - Number(item.discount || 0)) * Number(item.quantity);
     }
 
     let discount = 0;
@@ -785,7 +766,18 @@ app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, 
       (order_code,user_id,total,shipping_fee,tax,discount,payment_method,address,phone,notes)
       VALUES (?,?,?,?,?,?,?,?,?,?)
       `,
-      [orderCode, req.user.id, total, shipping_fee, tax, discount, payment_method, address, phone, notes || ""]
+      [
+        orderCode,
+        req.user.id,
+        total,
+        shipping_fee,
+        tax,
+        discount,
+        payment_method || "cash",
+        address || "",
+        phone || "",
+        notes || ""
+      ]
     );
 
     const orderId = orderResult.insertId;
@@ -794,10 +786,7 @@ app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, 
       const price = Number(item.price) - Number(item.discount || 0);
 
       await connection.query(
-        `
-        INSERT INTO order_items (order_id,product_id,product_name,quantity,price)
-        VALUES (?,?,?,?,?)
-        `,
+        "INSERT INTO order_items (order_id,product_id,product_name,quantity,price) VALUES (?,?,?,?,?)",
         [orderId, item.product_id, item.name, item.quantity, price]
       );
 
@@ -810,18 +799,12 @@ app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, 
     await connection.query("DELETE FROM cart_items WHERE user_id=?", [req.user.id]);
 
     await connection.query(
-      `
-      INSERT INTO payments (order_id,user_id,method,amount,phone,status)
-      VALUES (?,?,?,?,?,?)
-      `,
-      [orderId, req.user.id, payment_method, total, phone, "pending"]
+      "INSERT INTO payments (order_id,user_id,method,amount,phone,status) VALUES (?,?,?,?,?,?)",
+      [orderId, req.user.id, payment_method || "cash", total, phone || "", "pending"]
     );
 
     await connection.query(
-      `
-      INSERT INTO invoices (order_id,invoice_code,amount,status)
-      VALUES (?,?,?,?)
-      `,
+      "INSERT INTO invoices (order_id,invoice_code,amount,status) VALUES (?,?,?,?)",
       [orderId, makeInvoiceCode(), total, "unpaid"]
     );
 
@@ -848,10 +831,9 @@ app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, 
 });
 
 app.get("/api/my-orders", auth(["customer", "admin", "super_admin"]), async (req, res) => {
-  const [rows] = await pool.query(
-    "SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC",
-    [req.user.id]
-  );
+  const [rows] = await pool.query("SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC", [
+    req.user.id
+  ]);
 
   res.json(rows);
 });
@@ -863,8 +845,8 @@ app.post("/api/messages", auth(["customer", "admin", "super_admin"]), async (req
 
   await pool.query("INSERT INTO messages (user_id,subject,message) VALUES (?,?,?)", [
     req.user.id,
-    subject,
-    message
+    subject || "Support",
+    message || ""
   ]);
 
   res.json({ message: "Message sent to support" });
@@ -877,12 +859,8 @@ app.get("/api/admin/stats", auth(["admin", "super_admin"]), async (req, res) => 
   const [[products]] = await pool.query("SELECT COUNT(*) AS total FROM products");
   const [[orders]] = await pool.query("SELECT COUNT(*) AS total FROM orders");
   const [[pending]] = await pool.query("SELECT COUNT(*) AS total FROM orders WHERE order_status='pending'");
-  const [[revenue]] = await pool.query(
-    "SELECT COALESCE(SUM(total),0) AS total FROM orders WHERE payment_status='paid'"
-  );
-  const [[todaySales]] = await pool.query(
-    "SELECT COALESCE(SUM(total),0) AS total FROM orders WHERE DATE(created_at)=CURDATE()"
-  );
+  const [[revenue]] = await pool.query("SELECT COALESCE(SUM(total),0) AS total FROM orders WHERE payment_status='paid'");
+  const [[todaySales]] = await pool.query("SELECT COALESCE(SUM(total),0) AS total FROM orders WHERE DATE(created_at)=CURDATE()");
   const [[lowStock]] = await pool.query("SELECT COUNT(*) AS total FROM products WHERE stock <= 5");
 
   res.json({
@@ -955,7 +933,7 @@ app.post("/api/admin/products", auth(["admin", "super_admin"]), async (req, res)
     `,
     [
       category_id || null,
-      name,
+      name || "Untitled Product",
       sku || "",
       description || "",
       price || 0,
@@ -968,7 +946,6 @@ app.post("/api/admin/products", auth(["admin", "super_admin"]), async (req, res)
   );
 
   await logAction(req.user.id, `Added product: ${name}`, req);
-
   res.json({ message: "Product added successfully" });
 });
 
@@ -991,10 +968,11 @@ app.get("/api/admin/orders", auth(["admin", "super_admin"]), async (req, res) =>
 app.put("/api/admin/orders/:id", auth(["admin", "super_admin"]), async (req, res) => {
   const { order_status, payment_status } = req.body;
 
-  await pool.query(
-    "UPDATE orders SET order_status=?, payment_status=? WHERE id=?",
-    [order_status, payment_status, req.params.id]
-  );
+  await pool.query("UPDATE orders SET order_status=?, payment_status=? WHERE id=?", [
+    order_status || "pending",
+    payment_status || "pending",
+    req.params.id
+  ]);
 
   res.json({ message: "Order updated successfully" });
 });
@@ -1054,7 +1032,7 @@ app.post("/api/admin/coupons", auth(["admin", "super_admin"]), async (req, res) 
 
   await pool.query(
     "INSERT INTO coupons (code,discount_percent,expires_at,active) VALUES (?,?,?,TRUE)",
-    [code, discount_percent, expires_at || null]
+    [code, discount_percent || 0, expires_at || null]
   );
 
   res.json({ message: "Coupon created" });
