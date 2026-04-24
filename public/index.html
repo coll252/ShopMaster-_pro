@@ -1,1246 +1,323 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>ShopMaster Pro</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ShopPro - E-Commerce</title>
 
-<style>
-* {
-  box-sizing: border-box;
-}
+  <style>
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body { font-family: Arial; background:#f4f4f4; }
 
-:root {
-  --bg: #07111f;
-  --panel: #0f1b2d;
-  --panel2: #13243a;
-  --card: #102033;
-  --text: #f8fafc;
-  --muted: #94a3b8;
-  --primary: #38bdf8;
-  --primary2: #0ea5e9;
-  --green: #22c55e;
-  --orange: #f59e0b;
-  --red: #ef4444;
-  --border: rgba(255,255,255,.09);
-}
+    header {
+      display:flex; gap:10px; padding:15px;
+      background:#ea580c; color:white; align-items:center;
+    }
 
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(56,189,248,.22), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(34,197,94,.18), transparent 25%),
-    var(--bg);
-  color: var(--text);
-}
+    header input {
+      flex:1; padding:10px; border:none; border-radius:8px;
+    }
 
-button {
-  border: none;
-  padding: 11px 15px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary), var(--primary2));
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-}
+    button {
+      padding:10px; border:none; border-radius:8px;
+      background:#0f172a; color:white; cursor:pointer;
+    }
 
-button:hover {
-  opacity: .9;
-}
+    main {
+      display:grid;
+      grid-template-columns: 250px 1fr;
+      gap:20px;
+      padding:20px;
+    }
 
-input, textarea, select {
-  width: 100%;
-  padding: 13px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: #0b1727;
-  color: white;
-  margin: 8px 0;
-}
+    .sidebar {
+      background:white; padding:15px; border-radius:10px;
+    }
 
-textarea {
-  min-height: 90px;
-}
+    .grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px,1fr));
+      gap:15px;
+    }
 
-.hidden {
-  display: none !important;
-}
+    .card {
+      background:white;
+      padding:10px;
+      border-radius:10px;
+    }
 
-.auth-screen {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-}
+    .card img {
+      width:100%; height:150px; object-fit:cover;
+    }
 
-.auth-card {
-  width: 100%;
-  max-width: 460px;
-  background: rgba(15, 27, 45, .9);
-  border: 1px solid var(--border);
-  border-radius: 28px;
-  padding: 30px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.35);
-}
+    .price { color:#ea580c; font-weight:bold; }
 
-.auth-card h1 {
-  margin: 0;
-  font-size: 34px;
-}
+    .modal {
+      position:fixed; inset:0;
+      background:rgba(0,0,0,0.6);
+      display:none; align-items:center; justify-content:center;
+    }
 
-.auth-card p {
-  color: var(--muted);
-}
+    .modal-box {
+      background:white; padding:20px; border-radius:10px;
+      width:90%; max-width:400px;
+    }
 
-.auth-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 20px 0;
-}
+    .show { display:flex; }
 
-.auth-tabs button {
-  background: #13243a;
-}
+    #admin { display:none; padding:20px; }
 
-.auth-tabs button.active {
-  background: linear-gradient(135deg, var(--green), #16a34a);
-}
-
-.app {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  min-height: 100vh;
-}
-
-.sidebar {
-  background: rgba(15,27,45,.95);
-  border-right: 1px solid var(--border);
-  padding: 22px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-}
-
-.logo {
-  font-size: 25px;
-  font-weight: 900;
-  margin-bottom: 25px;
-}
-
-.menu button {
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.menu button:hover,
-.menu button.active {
-  background: #13243a;
-  color: white;
-}
-
-.main {
-  padding: 24px;
-}
-
-.topbar {
-  background: rgba(15,27,45,.85);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 20px;
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  align-items: center;
-}
-
-.topbar h2 {
-  margin: 0;
-}
-
-.badge {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(56,189,248,.15);
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.page {
-  display: none;
-}
-
-.page.active {
-  display: block;
-}
-
-.hero {
-  background: linear-gradient(135deg, #0ea5e9, #22c55e);
-  border-radius: 28px;
-  padding: 34px;
-  margin-bottom: 22px;
-  box-shadow: 0 20px 60px rgba(14,165,233,.22);
-}
-
-.hero h1 {
-  margin: 0;
-  font-size: 42px;
-}
-
-.hero p {
-  max-width: 760px;
-  line-height: 1.7;
-}
-
-.grid {
-  display: grid;
-  gap: 18px;
-}
-
-.grid-4 {
-  grid-template-columns: repeat(4, 1fr);
-}
-
-.grid-3 {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.grid-2 {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.card {
-  background: rgba(15,27,45,.9);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 18px;
-  box-shadow: 0 18px 40px rgba(0,0,0,.2);
-}
-
-.card h3 {
-  margin-top: 0;
-}
-
-.stat .value {
-  font-size: 34px;
-  font-weight: 900;
-  margin: 10px 0;
-}
-
-.product-card img {
-  width: 100%;
-  height: 190px;
-  object-fit: cover;
-  border-radius: 18px;
-  background: #0b1727;
-}
-
-.price {
-  color: var(--green);
-  font-size: 23px;
-  font-weight: 900;
-}
-
-.table-wrap {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 720px;
-}
-
-th, td {
-  padding: 13px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-size: 14px;
-}
-
-th {
-  color: var(--primary);
-}
-
-.notice {
-  color: var(--muted);
-}
-
-.success {
-  color: var(--green);
-}
-
-.warning {
-  color: var(--orange);
-}
-
-.danger {
-  color: var(--red);
-}
-
-.cart-row {
-  display: grid;
-  grid-template-columns: 1fr 90px 120px auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.admin-only {
-  display: none;
-}
-
-.chart {
-  height: 240px;
-  display: flex;
-  align-items: end;
-  gap: 10px;
-  padding-top: 20px;
-}
-
-.bar {
-  flex: 1;
-  border-radius: 12px 12px 0 0;
-  background: linear-gradient(180deg, var(--primary), var(--primary2));
-  min-height: 25px;
-}
-
-@media(max-width: 950px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    height: auto;
-    position: static;
-  }
-
-  .grid-4,
-  .grid-3,
-  .grid-2 {
-    grid-template-columns: 1fr;
-  }
-
-  .topbar {
-    display: block;
-  }
-
-  .hero h1 {
-    font-size: 30px;
-  }
-
-  .cart-row {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
+    @media(max-width:800px){
+      main { grid-template-columns:1fr; }
+    }
+  </style>
 </head>
 
 <body>
 
-<section id="authScreen" class="auth-screen">
-  <div class="auth-card">
-    <h1>ShopMaster Pro</h1>
-    <p>Professional e-commerce system for customers, sales, orders, products and admin control.</p>
+<header>
+  <h2>ShopPro</h2>
+  <input id="search" placeholder="Search products...">
+  <button onclick="openCart()">Cart (<span id="cartCount">0</span>)</button>
+  <button onclick="showAuth()">Login</button>
+  <button onclick="adminLogin()">Admin</button>
+</header>
 
-    <div class="auth-tabs">
-      <button id="loginTab" class="active" onclick="setAuthMode('login')">Login</button>
-      <button id="registerTab" onclick="setAuthMode('register')">Register</button>
-    </div>
-
-    <div id="registerFields" class="hidden">
-      <input id="regName" placeholder="Full name">
-      <input id="regPhone" placeholder="Phone number">
-    </div>
-
-    <input id="authEmail" placeholder="Email address">
-    <input id="authPassword" type="password" placeholder="Password">
-
-    <button style="width:100%;margin-top:10px" onclick="submitAuth()">Continue</button>
-
-    <p style="text-align:center">
-      <a href="#" style="color:var(--primary)" onclick="forgotPassword()">Forgot password?</a>
-    </p>
-
-    <p class="notice">Admins use the same login page. Admin portal opens only for admin accounts.</p>
+<main>
+  <div class="sidebar">
+    <h3>Filters</h3>
+    <select id="category"></select>
+    <select id="sort">
+      <option value="new">Newest</option>
+      <option value="price_asc">Price ↑</option>
+      <option value="price_desc">Price ↓</option>
+      <option value="best">Best</option>
+    </select>
+    <button onclick="loadProducts()">Apply</button>
   </div>
-</section>
 
-<section id="app" class="app hidden">
-  <aside class="sidebar">
-    <div class="logo">🛒 ShopMaster</div>
+  <div>
+    <h2>Products</h2>
+    <div id="products" class="grid"></div>
+  </div>
+</main>
 
-    <div class="menu" id="customerMenu">
-      <button class="active" onclick="showPage('storePage', this)">🏬 Store</button>
-      <button onclick="showPage('cartPage', this); loadCart()">🛒 Cart</button>
-      <button onclick="showPage('ordersPage', this); loadOrders()">📦 My Orders</button>
-      <button onclick="showPage('supportPage', this)">💬 Support</button>
-    </div>
+<!-- CART -->
+<div id="cartModal" class="modal">
+  <div class="modal-box">
+    <h3>Cart</h3>
+    <div id="cartItems"></div>
+    <button onclick="checkout()">Checkout</button>
+    <button onclick="closeCart()">Close</button>
+  </div>
+</div>
 
-    <div class="menu admin-only" id="adminMenu">
-      <button onclick="showPage('adminDashboard', this); loadAdminDashboard()">📊 Dashboard</button>
-      <button onclick="showPage('adminProducts', this); loadAdminProducts()">🧾 Products</button>
-      <button onclick="showPage('adminOrders', this); loadAdminOrders()">📦 Orders</button>
-      <button onclick="showPage('adminCustomers', this); loadAdminCustomers()">👥 Customers</button>
-      <button onclick="showPage('adminCoupons', this); loadCoupons()">🏷 Coupons</button>
-      <button onclick="showPage('adminMessages', this); loadMessages()">✉ Messages</button>
-      <button onclick="showPage('adminLogs', this); loadLogs()">🕒 Logs</button>
-    </div>
+<!-- AUTH -->
+<div id="authModal" class="modal">
+  <div class="modal-box">
+    <h3>Login</h3>
+    <input id="email" placeholder="Email"><br><br>
+    <input id="password" type="password" placeholder="Password"><br><br>
+    <button onclick="login()">Login</button>
 
-    <br>
-    <button style="width:100%;background:#ef4444" onclick="logout()">Logout</button>
-  </aside>
+    <h3>Register</h3>
+    <input id="name" placeholder="Name"><br><br>
+    <input id="email2" placeholder="Email"><br><br>
+    <input id="pass2" type="password" placeholder="Password"><br><br>
+    <button onclick="register()">Register</button>
 
-  <main class="main">
-    <div class="topbar">
-      <div>
-        <h2 id="pageTitle">Store</h2>
-        <p class="notice" id="userInfo">Welcome</p>
-      </div>
-      <div>
-        <span class="badge" id="roleBadge">customer</span>
-      </div>
-    </div>
+    <button onclick="hideAuth()">Close</button>
+  </div>
+</div>
 
-    <section id="storePage" class="page active">
-      <div class="hero">
-        <h1>Shop smarter. Sell faster.</h1>
-        <p>Browse products, add to cart, place orders and track everything from your customer portal.</p>
-      </div>
+<!-- ADMIN -->
+<div id="admin">
+  <h2>Admin Dashboard</h2>
+  <div id="stats"></div>
+  <div id="orders"></div>
+</div>
 
-      <div class="card">
-        <input id="searchInput" placeholder="Search products..." oninput="loadProducts()">
-      </div>
-
-      <div id="productGrid" class="grid grid-3"></div>
-    </section>
-
-    <section id="cartPage" class="page">
-      <div class="card">
-        <h2>Your Cart</h2>
-        <div id="cartList"></div>
-      </div>
-
-      <div class="card">
-        <h2>Checkout</h2>
-        <input id="checkoutPhone" placeholder="Phone number e.g. 2547XXXXXXXX">
-        <textarea id="checkoutAddress" placeholder="Delivery address"></textarea>
-        <input id="couponCode" placeholder="Coupon code optional">
-        <select id="paymentMethod">
-          <option value="cash">Cash on Delivery</option>
-          <option value="mpesa">M-Pesa</option>
-        </select>
-        <button onclick="placeOrder()">Place Order</button>
-      </div>
-    </section>
-
-    <section id="ordersPage" class="page">
-      <div class="card">
-        <h2>My Orders</h2>
-        <div id="ordersList"></div>
-      </div>
-    </section>
-
-    <section id="supportPage" class="page">
-      <div class="card">
-        <h2>Customer Support</h2>
-        <input id="supportSubject" placeholder="Subject">
-        <textarea id="supportMessage" placeholder="Write your message"></textarea>
-        <button onclick="sendSupport()">Send Message</button>
-      </div>
-    </section>
-
-    <section id="adminDashboard" class="page">
-      <div class="grid grid-4">
-        <div class="card stat">
-          <h3>Customers</h3>
-          <div class="value" id="statUsers">0</div>
-          <span class="success">Active buyers</span>
-        </div>
-        <div class="card stat">
-          <h3>Products</h3>
-          <div class="value" id="statProducts">0</div>
-          <span class="success">Inventory</span>
-        </div>
-        <div class="card stat">
-          <h3>Orders</h3>
-          <div class="value" id="statOrders">0</div>
-          <span class="warning">Sales flow</span>
-        </div>
-        <div class="card stat">
-          <h3>Revenue</h3>
-          <div class="value" id="statRevenue">0</div>
-          <span class="success">Paid orders</span>
-        </div>
-      </div>
-
-      <div class="grid grid-2">
-        <div class="card">
-          <h3>Sales Chart</h3>
-          <div id="salesChart" class="chart"></div>
-        </div>
-        <div class="card">
-          <h3>Top Products</h3>
-          <div id="topProducts"></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="adminProducts" class="page">
-      <div class="grid grid-2">
-        <div class="card">
-          <h2>Add Product</h2>
-          <input id="pName" placeholder="Product name">
-          <input id="pSku" placeholder="SKU">
-          <textarea id="pDesc" placeholder="Description"></textarea>
-          <input id="pPrice" type="number" placeholder="Price">
-          <input id="pDiscount" type="number" placeholder="Discount">
-          <input id="pStock" type="number" placeholder="Stock">
-          <input id="pImage" placeholder="Image URL">
-          <select id="pStatus">
-            <option value="active">Active</option>
-            <option value="draft">Draft</option>
-            <option value="archived">Archived</option>
-          </select>
-          <button onclick="addProduct()">Save Product</button>
-        </div>
-
-        <div class="card">
-          <h2>Product List</h2>
-          <div id="adminProductList"></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="adminOrders" class="page">
-      <div class="card">
-        <h2>Orders Control</h2>
-        <div id="adminOrdersList" class="table-wrap"></div>
-      </div>
-    </section>
-
-    <section id="adminCustomers" class="page">
-      <div class="card">
-        <h2>Customers</h2>
-        <div id="adminCustomersList" class="table-wrap"></div>
-      </div>
-    </section>
-
-    <section id="adminCoupons" class="page">
-      <div class="grid grid-2">
-        <div class="card">
-          <h2>Create Coupon</h2>
-          <input id="couponNewCode" placeholder="Code e.g. SAVE20">
-          <input id="couponPercent" type="number" placeholder="Discount percent">
-          <input id="couponExpiry" type="datetime-local">
-          <button onclick="createCoupon()">Create Coupon</button>
-        </div>
-        <div class="card">
-          <h2>Coupons</h2>
-          <div id="couponsList"></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="adminMessages" class="page">
-      <div class="card">
-        <h2>Customer Messages</h2>
-        <div id="messagesList"></div>
-      </div>
-    </section>
-
-    <section id="adminLogs" class="page">
-      <div class="card">
-        <h2>Activity Logs</h2>
-        <div id="logsList"></div>
-      </div>
-    </section>
-  </main>
-</section>
+<script src="/socket.io/socket.io.js"></script>
 
 <script>
-let token = localStorage.getItem("shopmaster_token") || "";
-let user = JSON.parse(localStorage.getItem("shopmaster_user") || "null");
-let authMode = "login";
-let cartCache = [];
+const API = "";
+let token = localStorage.getItem("token") || "";
+let adminToken = localStorage.getItem("adminToken") || "";
+const socket = io();
 
-function setAuthMode(mode) {
-  authMode = mode;
+async function api(url, method="GET", body=null, isAdmin=false){
+  const headers = {"Content-Type":"application/json"};
+  if(token && !isAdmin) headers["Authorization"] = "Bearer " + token;
+  if(adminToken && isAdmin) headers["Authorization"] = "Bearer " + adminToken;
 
-  document.getElementById("loginTab").classList.toggle("active", mode === "login");
-  document.getElementById("registerTab").classList.toggle("active", mode === "register");
-  document.getElementById("registerFields").classList.toggle("hidden", mode !== "register");
-}
-
-async function api(url, options = {}) {
-  const headers = options.headers || {};
-  headers["Content-Type"] = "application/json";
-
-  if (token) {
-    headers["Authorization"] = "Bearer " + token;
-  }
-
-  const res = await fetch(url, {
-    ...options,
-    headers
+  const res = await fetch(API+url,{
+    method,
+    headers,
+    body: body ? JSON.stringify(body):null
   });
 
-  let data = {};
-  try {
-    data = await res.json();
-  } catch (e) {}
-
-  if (!res.ok) {
-    throw new Error(data.message || data.error || "Request failed");
-  }
-
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.error || "Error");
   return data;
 }
 
-async function submitAuth() {
-  try {
-    const email = document.getElementById("authEmail").value.trim();
-    const password = document.getElementById("authPassword").value;
+/* PRODUCTS */
 
-    if (authMode === "register") {
-      const name = document.getElementById("regName").value.trim();
-      const phone = document.getElementById("regPhone").value.trim();
+async function loadProducts(){
+  const q = search.value;
+  const category = document.getElementById("category").value;
+  const sort = document.getElementById("sort").value;
 
-      const data = await api("/api/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ name, email, phone, password })
-      });
+  const products = await api(`/api/products?q=${q}&category=${category}&sort=${sort}`);
 
-      alert(data.message || "Registered successfully");
-      setAuthMode("login");
-      return;
-    }
-
-    const data = await api("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password })
-    });
-
-    token = data.token;
-    user = data.user;
-
-    localStorage.setItem("shopmaster_token", token);
-    localStorage.setItem("shopmaster_user", JSON.stringify(user));
-
-    bootApp();
-  } catch (err) {
-    alert(err.message);
-  }
+  document.getElementById("products").innerHTML = products.map(p=>`
+    <div class="card">
+      <img src="${p.image}">
+      <h4>${p.name}</h4>
+      <p class="price">KES ${p.price}</p>
+      <button onclick="addToCart(${p.id})">Add</button>
+      <button onclick="wishlist(${p.id})">♥</button>
+    </div>
+  `).join("");
 }
 
-async function forgotPassword() {
-  const email = prompt("Enter your email address:");
-  if (!email) return;
+/* CART */
 
-  try {
-    const data = await api("/api/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email })
-    });
+async function loadCart(){
+  if(!token) return;
+  const items = await api("/api/cart");
 
-    alert(data.message || "Reset link sent");
-  } catch (err) {
-    alert(err.message);
-  }
+  cartCount.innerText = items.length;
+
+  cartItems.innerHTML = items.map(i=>`
+    <div>
+      ${i.name} x ${i.quantity}
+      <button onclick="removeCart(${i.id})">X</button>
+    </div>
+  `).join("");
 }
 
-async function resetPasswordFromLink() {
-  const params = new URLSearchParams(window.location.search);
-  const resetToken = params.get("reset");
-
-  if (!resetToken) return;
-
-  const password = prompt("Enter your new password:");
-  if (!password) return;
-
-  try {
-    const data = await api("/api/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({
-        token: resetToken,
-        password
-      })
-    });
-
-    alert(data.message || "Password changed");
-    history.replaceState({}, document.title, "/");
-  } catch (err) {
-    alert(err.message);
-  }
+async function addToCart(id){
+  if(!token) return showAuth();
+  await api("/api/cart","POST",{product_id:id});
+  loadCart();
 }
 
-function bootApp() {
-  if (!token || !user) {
-    document.getElementById("authScreen").classList.remove("hidden");
-    document.getElementById("app").classList.add("hidden");
-    return;
-  }
-
-  document.getElementById("authScreen").classList.add("hidden");
-  document.getElementById("app").classList.remove("hidden");
-
-  document.getElementById("userInfo").innerText = `${user.name || "User"} · ${user.email || ""}`;
-  document.getElementById("roleBadge").innerText = user.role || "customer";
-
-  const isAdmin = user.role === "admin" || user.role === "super_admin";
-
-  document.getElementById("adminMenu").style.display = isAdmin ? "block" : "none";
-  document.getElementById("customerMenu").style.display = isAdmin ? "none" : "block";
-
-  if (isAdmin) {
-    showPage("adminDashboard");
-    loadAdminDashboard();
-  } else {
-    showPage("storePage");
-    loadProducts();
-  }
+async function removeCart(id){
+  await api("/api/cart/"+id,"DELETE");
+  loadCart();
 }
 
-function logout() {
-  localStorage.removeItem("shopmaster_token");
-  localStorage.removeItem("shopmaster_user");
-  token = "";
-  user = null;
-  bootApp();
+/* WISHLIST */
+
+async function wishlist(id){
+  if(!token) return showAuth();
+  await api("/api/wishlist","POST",{product_id:id});
+  alert("Saved");
 }
 
-function showPage(id, btn) {
-  document.querySelectorAll(".page").forEach(page => page.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
+/* CHECKOUT */
 
-  document.querySelectorAll(".menu button").forEach(b => b.classList.remove("active"));
-  if (btn) btn.classList.add("active");
-
-  const titleMap = {
-    storePage: "Store",
-    cartPage: "Cart",
-    ordersPage: "My Orders",
-    supportPage: "Support",
-    adminDashboard: "Admin Dashboard",
-    adminProducts: "Products",
-    adminOrders: "Orders",
-    adminCustomers: "Customers",
-    adminCoupons: "Coupons",
-    adminMessages: "Messages",
-    adminLogs: "Activity Logs"
-  };
-
-  document.getElementById("pageTitle").innerText = titleMap[id] || "ShopMaster";
+async function checkout(){
+  const address_id = prompt("Enter address ID");
+  const res = await api("/api/orders","POST",{address_id});
+  alert("Order ID: "+res.orderId);
 }
 
-async function loadProducts() {
-  try {
-    const search = document.getElementById("searchInput")?.value || "";
-    const products = await api("/api/products?search=" + encodeURIComponent(search), {
-      method: "GET"
-    });
+/* AUTH */
 
-    const grid = document.getElementById("productGrid");
-    grid.innerHTML = "";
+function showAuth(){ authModal.classList.add("show"); }
+function hideAuth(){ authModal.classList.remove("show"); }
 
-    if (!products.length) {
-      grid.innerHTML = `<div class="card"><p>No products found.</p></div>`;
-      return;
-    }
+async function login(){
+  const res = await api("/api/login","POST",{
+    email:email.value,
+    password:password.value
+  });
 
-    products.forEach(product => {
-      const price = Number(product.price || 0);
-      const discount = Number(product.discount || 0);
-      const finalPrice = price - discount;
-
-      grid.innerHTML += `
-        <div class="card product-card">
-          <img src="${product.image || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d"}">
-          <h3>${product.name || "Product"}</h3>
-          <p class="notice">${product.description || "No description available."}</p>
-          <p><span class="badge">${product.category_name || "General"}</span> <span class="badge">Stock ${product.stock || 0}</span></p>
-          <div class="price">KSh ${finalPrice.toLocaleString()}</div>
-          ${discount > 0 ? `<p class="notice"><s>KSh ${price.toLocaleString()}</s></p>` : ""}
-          <button onclick="addToCart(${product.id})">Add to Cart</button>
-          <button style="background:#13243a" onclick="addWishlist(${product.id})">Wishlist</button>
-        </div>
-      `;
-    });
-  } catch (err) {
-    document.getElementById("productGrid").innerHTML = `<div class="card danger">${err.message}</div>`;
-  }
+  token = res.token;
+  localStorage.setItem("token",token);
+  hideAuth();
+  loadCart();
 }
 
-async function addToCart(productId) {
-  try {
-    const data = await api("/api/cart", {
-      method: "POST",
-      body: JSON.stringify({
-        product_id: productId,
-        quantity: 1
-      })
-    });
+async function register(){
+  await api("/api/register","POST",{
+    name:name.value,
+    email:email2.value,
+    password:pass2.value
+  });
 
-    alert(data.message || "Added to cart");
-  } catch (err) {
-    alert(err.message);
-  }
+  alert("Registered");
 }
 
-async function addWishlist(productId) {
-  try {
-    const data = await api("/api/wishlist", {
-      method: "POST",
-      body: JSON.stringify({ product_id: productId })
-    });
+/* ADMIN */
 
-    alert(data.message || "Added to wishlist");
-  } catch (err) {
-    alert(err.message);
-  }
+async function adminLogin(){
+  const email = prompt("Admin email");
+  const password = prompt("Password");
+
+  const res = await fetch("/api/login",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({email,password})
+  });
+
+  const data = await res.json();
+  if(!res.ok) return alert(data.error);
+
+  adminToken = data.token;
+  localStorage.setItem("adminToken",adminToken);
+
+  document.getElementById("admin").style.display="block";
+  loadAdmin();
 }
 
-async function loadCart() {
-  try {
-    const items = await api("/api/cart", { method: "GET" });
-    cartCache = items;
+async function loadAdmin(){
+  const stats = await api("/api/admin/analytics","GET",null,true);
 
-    const list = document.getElementById("cartList");
-    list.innerHTML = "";
+  document.getElementById("stats").innerHTML = `
+    Revenue: ${stats.revenue.total}<br>
+    Orders: ${stats.orders.total}<br>
+    Customers: ${stats.customers.total}
+  `;
 
-    if (!items.length) {
-      list.innerHTML = `<p class="notice">Your cart is empty.</p>`;
-      return;
-    }
+  const orders = await api("/api/admin/orders","GET",null,true);
 
-    let total = 0;
-
-    items.forEach(item => {
-      const price = Number(item.price || 0) - Number(item.discount || 0);
-      const qty = Number(item.quantity || item.qty || 1);
-      const subtotal = price * qty;
-      total += subtotal;
-
-      list.innerHTML += `
-        <div class="card cart-row">
-          <div>
-            <strong>${item.name}</strong>
-            <p class="notice">KSh ${price.toLocaleString()} each</p>
-          </div>
-          <input type="number" min="1" value="${qty}" onchange="updateCart(${item.id}, this.value)">
-          <strong>KSh ${subtotal.toLocaleString()}</strong>
-          <button style="background:#ef4444" onclick="removeCart(${item.id})">Remove</button>
-        </div>
-      `;
-    });
-
-    list.innerHTML += `
-      <div class="card">
-        <h2>Total: KSh ${total.toLocaleString()}</h2>
-      </div>
-    `;
-  } catch (err) {
-    document.getElementById("cartList").innerHTML = `<p class="danger">${err.message}</p>`;
-  }
+  document.getElementById("orders").innerHTML = orders.map(o=>`
+    <div>
+      #${o.id} ${o.customer_name} - ${o.total}
+      <select onchange="updateOrder(${o.id},this.value)">
+        ${["pending","paid","processing","shipped","delivered"].map(s=>
+          `<option ${o.status==s?"selected":""}>${s}</option>`
+        )}
+      </select>
+    </div>
+  `).join("");
 }
 
-async function updateCart(id, quantity) {
-  try {
-    await api("/api/cart/" + id, {
-      method: "PUT",
-      body: JSON.stringify({ quantity })
-    });
-
-    loadCart();
-  } catch (err) {
-    alert(err.message);
-  }
+async function updateOrder(id,status){
+  await api(`/api/admin/orders/${id}/status`,"PATCH",{status},true);
 }
 
-async function removeCart(id) {
-  try {
-    const data = await api("/api/cart/" + id, {
-      method: "DELETE"
-    });
+/* SOCKET */
 
-    alert(data.message || "Removed");
-    loadCart();
-  } catch (err) {
-    alert(err.message);
-  }
+socket.on("order_status",data=>{
+  alert(`Order ${data.orderId} is now ${data.status}`);
+});
+
+/* INIT */
+
+async function init(){
+  const cats = await api("/api/categories");
+  category.innerHTML = `<option value="">All</option>` +
+    cats.map(c=>`<option value="${c.slug}">${c.name}</option>`).join("");
+
+  loadProducts();
+  loadCart();
 }
 
-async function placeOrder() {
-  try {
-    const address = document.getElementById("checkoutAddress").value.trim();
-    const phone = document.getElementById("checkoutPhone").value.trim();
-    const payment_method = document.getElementById("paymentMethod").value;
-    const coupon_code = document.getElementById("couponCode").value.trim();
-
-    if (!address || !phone) {
-      alert("Please enter phone and delivery address.");
-      return;
-    }
-
-    const data = await api("/api/orders", {
-      method: "POST",
-      body: JSON.stringify({
-        address,
-        phone,
-        payment_method,
-        coupon_code
-      })
-    });
-
-    if (payment_method === "mpesa") {
-      try {
-        await api("/api/payments/mpesa/stk", {
-          method: "POST",
-          body: JSON.stringify({
-            order_id: data.order_id,
-            phone,
-            amount: data.total
-          })
-        });
-      } catch (e) {}
-    }
-
-    alert(`${data.message}\nOrder: ${data.order_code}\nTotal: KSh ${Number(data.total).toLocaleString()}`);
-    loadCart();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function loadOrders() {
-  try {
-    const orders = await api("/api/my-orders", { method: "GET" });
-
-    const list = document.getElementById("ordersList");
-    list.innerHTML = "";
-
-    if (!orders.length) {
-      list.innerHTML = `<p class="notice">No orders yet.</p>`;
-      return;
-    }
-
-    orders.forEach(order => {
-      list.innerHTML += `
-        <div class="card">
-          <h3>${order.order_code || "Order #" + order.id}</h3>
-          <p>Total: <strong>KSh ${Number(order.total || 0).toLocaleString()}</strong></p>
-          <p>Status: <span class="badge">${order.order_status || "pending"}</span></p>
-          <p>Payment: <span class="badge">${order.payment_status || "pending"}</span></p>
-          <p class="notice">${order.address || ""}</p>
-        </div>
-      `;
-    });
-  } catch (err) {
-    document.getElementById("ordersList").innerHTML = `<p class="danger">${err.message}</p>`;
-  }
-}
-
-async function sendSupport() {
-  try {
-    const subject = document.getElementById("supportSubject").value.trim();
-    const message = document.getElementById("supportMessage").value.trim();
-
-    const data = await api("/api/messages", {
-      method: "POST",
-      body: JSON.stringify({ subject, message })
-    });
-
-    alert(data.message || "Message sent");
-    document.getElementById("supportSubject").value = "";
-    document.getElementById("supportMessage").value = "";
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function loadAdminDashboard() {
-  try {
-    const stats = await api("/api/admin/stats", { method: "GET" });
-    const analytics = await api("/api/admin/analytics", { method: "GET" });
-
-    document.getElementById("statUsers").innerText = Number(stats.users || 0).toLocaleString();
-    document.getElementById("statProducts").innerText = Number(stats.products || 0).toLocaleString();
-    document.getElementById("statOrders").innerText = Number(stats.orders || 0).toLocaleString();
-    document.getElementById("statRevenue").innerText = "KSh " + Number(stats.revenue || 0).toLocaleString();
-
-    const chart = document.getElementById("salesChart");
-    const monthly = analytics.monthly && analytics.monthly.length ? analytics.monthly : [
-      { sales: 3000 }, { sales: 7000 }, { sales: 5000 }, { sales: 11000 }, { sales: 9000 }, { sales: 14000 }
-    ];
-
-    const max = Math.max(...monthly.map(m => Number(m.sales || 1)));
-
-    chart.innerHTML = monthly.map(m => {
-      const h = Math.max(25, (Number(m.sales || 0) / max) * 220);
-      return `<div class="bar" style="height:${h}px" title="${m.month || ""}: ${m.sales || 0}"></div>`;
-    }).join("");
-
-    const top = document.getElementById("topProducts");
-    const topProducts = analytics.topProducts || [];
-
-    top.innerHTML = topProducts.length
-      ? topProducts.map(p => `<div class="card">${p.product_name} · Qty ${p.quantity} · KSh ${Number(p.revenue || 0).toLocaleString()}</div>`).join("")
-      : `<p class="notice">No sales data yet.</p>`;
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function loadAdminProducts() {
-  try {
-    const products = await api("/api/admin/products", { method: "GET" });
-    const list = document.getElementById("adminProductList");
-
-    list.innerHTML = "";
-
-    if (!products.length) {
-      list.innerHTML = `<p class="notice">No products available.</p>`;
-      return;
-    }
-
-    products.forEach(p => {
-      list.innerHTML += `
-        <div class="card">
-          <strong>${p.name}</strong>
-          <p class="notice">${p.sku || ""} · ${p.status || "active"}</p>
-          <p>KSh ${Number(p.price || 0).toLocaleString()} · Stock ${p.stock || 0}</p>
-          <button style="background:#ef4444" onclick="deleteProduct(${p.id})">Delete</button>
-        </div>
-      `;
-    });
-  } catch (err) {
-    document.getElementById("adminProductList").innerHTML = `<p class="danger">${err.message}</p>`;
-  }
-}
-
-async function addProduct() {
-  try {
-    const data = await api("/api/admin/products", {
-      method: "POST",
-      body: JSON.stringify({
-        name: document.getElementById("pName").value,
-        sku: document.getElementById("pSku").value,
-        description: document.getElementById("pDesc").value,
-        price: document.getElementById("pPrice").value,
-        discount: document.getElementById("pDiscount").value,
-        stock: document.getElementById("pStock").value,
-        image: document.getElementById("pImage").value,
-        status: document.getElementById("pStatus").value
-      })
-    });
-
-    alert(data.message || "Product added");
-    loadAdminProducts();
-    loadProducts();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function deleteProduct(id) {
-  if (!confirm("Delete this product?")) return;
-
-  try {
-    const data = await api("/api/admin/products/" + id, {
-      method: "DELETE"
-    });
-
-    alert(data.message || "Deleted");
-    loadAdminProducts();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function loadAdminOrders() {
-  try {
-    const orders = await api("/api/admin/orders", { method: "GET" });
-    const box = document.getElementById("adminOrdersList");
-
-    if (!orders.length) {
-      box.innerHTML = `<p class="notice">No orders yet.</p>`;
-      return;
-    }
-
-    box.innerHTML = `
-      <table>
-        <tr>
-          <th>Order</th>
-          <th>Customer</th>
-          <th>Total</th>
-          <th>Status</th>
-          <th>Payment</th>
-          <th>Action</th>
-        </tr>
-        ${orders.map(o => `
-          <tr>
-            <td>${o.order_code || o.id}</td>
-            <td>${o.name || "Unknown"}<br><span class="notice">${o.email || ""}</span></td>
-            <td>KSh ${Number(o.total || 0).toLocaleString()}</td>
-            <td>
-              <select id="os${o.id}">
-                <option ${o.order_status==="pending"?"selected":""}>pending</option>
-                <option ${o.order_status==="processing"?"selected":""}>processing</option>
-                <option ${o.order_status==="packed"?"selected":""}>packed</option>
-                <option ${o.order_status==="shipped"?"selected":""}>shipped</option>
-                <option ${o.order_status==="delivered"?"selected":""}>delivered</option>
-                <option ${o.order_status==="cancelled"?"selected":""}>cancelled</option>
-              </select>
-            </td>
-            <td>
-              <select id="ps${o.id}">
-                <option ${o.payment_status==="pending"?"selected":""}>pending</option>
-                <option ${o.payment_status==="paid"?"selected":""}>paid</option>
-                <option ${o.payment_status==="failed"?"selected":""}>failed</option>
-                <option ${o.payment_status==="refunded"?"selected":""}>refunded</option>
-              </select>
-            </td>
-            <td><button onclick="updateOrder(${o.id})">Update</button></td>
-          </tr>
-        `).join("")}
-      </table>
-    `;
-  } catch (err) {
-    document.getElementById("adminOrdersList").innerHTML = `<p class="danger">${err.message}</p>`;
-  }
-}
-
-async function updateOrder(id) {
-  try {
-    const data = await api("/api/admin/orders/" + id, {
-      method: "PUT",
-      body: JSON.stringify({
-        order_status: document.getElementById("os" + id).value,
-        payment_status: document.getElementById("ps" + id).value
-      })
-    });
-
-    alert(data.message || "Order updated");
-    loadAdminOrders();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function loadAdminCustomers() {
-  try {
-    const customers = await api("/api/admin/customers", { method: "GET" });
-
-    const box = document.getElementById("adminCustomersList");
-
-    if (!customers.length) {
-      box.innerHTML = `<p class="notice">No customers yet.</p>`;
-      return;
-    }
-
-    box.innerHTML = `
-      <table>
-        <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Phone</th>
-          <th>Orders</th>
-          <th>Spent</th>
-          <th>Status</th>
-        </tr>
-        ${customers.map(c => `
-          <tr>
-            <td>${c.name || ""}</td>
-            <td>${c.email || ""}</td>
-            <td>${c.phone || ""}</td>
-            <td>${c.total_orders || 0}</td>
-            <td>KSh ${Number(c.total_spent || 0).toLocaleString()}</td>
-            <td>${c.status || ""}</td>
-          </tr>
-        `).join("")}
-      </table>
-    `;
-  } catch (err) {
-    document.getElementById("adminCustomersList").innerHTML = `<p class="danger">${err.message}</p>`;
-  }
-}
-
-async function loadCoupons() {
-  try {
-    const coupons = await api("/api/admin/coupons", { method: "GET" });
-    const list = document.getElementById("couponsList");
-
-    list.innerHTML = coupons.length
-      ? coupons.map(c => `<div class="card"><strong>${c.code}</strong><p>${c.discount_percent}% discount · ${c.active ? "Active" : "Inactive"}</p></div>`).join("")
-      : `<p class="notice">No coupons yet.</p>`;
-  } catch (err) {
-    document.getElementById("couponsList").innerHTML = `<p class="danger">${err.message}</p>`;
-  }
-}
-
-async function createCoupon() {
-  try {
-    const data = await api("/api/admin/coupons", {
-      method: "POST",
-      body: JSON.stringify({
-        code: document.getElementById("couponNewCode").value,
-        discount_percent: document.getElementById("couponPercent").value,
-        expires_at: document.getElementById("couponExpiry").value || null
-      })
-    });
-
-    alert(data.message || "Coupon created");
-    loadCoupons();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function loadMessages() {
-  try {
-    const messages = await api("/api/admin/messages", { method: "GET" });
-    const list = document.getElementById("messagesList");
-
-    list.innerHTML = messages.length
-      ? messages.map(m => `
-        <div class="card">
-          <strong>${m.subject || "Support"}</strong>
-          <p>${m.message || ""}</p>
-          <p class="notice">${m.name || ""} · ${m.email || ""} · ${m.status || "open"}</p>
-        </div>
-      `).join("")
-      : `<p class="notice">No messages yet.</p>`;
-  } catch (err) {
-    document.getElementById("messagesList").innerHTML = `<p class="danger">${err.message}</p>`;
-  }
-}
-
-async function loadLogs() {
-  try {
-    const logs = await api("/api/admin/logs", { method: "GET" });
-    const list = document.getElementById("logsList");
-
-    list.innerHTML = logs.length
-      ? logs.map(l => `
-        <div class="card">
-          <strong>${l.action || ""}</strong>
-          <p class="notice">${l.name || ""} · ${l.email || ""} · ${l.created_at || ""}</p>
-        </div>
-      `).join("")
-      : `<p class="notice">No logs yet.</p>`;
-  } catch (err) {
-    document.getElementById("logsList").innerHTML = `<p class="danger">${err.message}</p>`;
-  }
-}
-
-resetPasswordFromLink();
-bootApp();
+init();
 </script>
 
 </body>
