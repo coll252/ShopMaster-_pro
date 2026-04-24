@@ -92,6 +92,7 @@ async function initDatabase() {
   `);
 
   await safeAlter("users", "phone", "ALTER TABLE users ADD COLUMN phone VARCHAR(40)");
+  await safeAlter("users", "password", "ALTER TABLE users ADD COLUMN password VARCHAR(255)");
   await safeAlter("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(40) DEFAULT 'customer'");
   await safeAlter("users", "status", "ALTER TABLE users ADD COLUMN status VARCHAR(40) DEFAULT 'active'");
   await safeAlter("users", "avatar", "ALTER TABLE users ADD COLUMN avatar TEXT");
@@ -100,8 +101,8 @@ async function initDatabase() {
   await safeAlter("users", "last_login", "ALTER TABLE users ADD COLUMN last_login DATETIME");
   await safeAlter("users", "created_at", "ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
-  await safeModify("ALTER TABLE users MODIFY COLUMN role VARCHAR(40) DEFAULT 'customer'", "users.role varchar");
-  await safeModify("ALTER TABLE users MODIFY COLUMN status VARCHAR(40) DEFAULT 'active'", "users.status varchar");
+  await safeModify("ALTER TABLE users MODIFY COLUMN role VARCHAR(40) DEFAULT 'customer'", "users.role");
+  await safeModify("ALTER TABLE users MODIFY COLUMN status VARCHAR(40) DEFAULT 'active'", "users.status");
 
   await pool.query(`
     UPDATE users 
@@ -151,7 +152,7 @@ async function initDatabase() {
   await safeAlter("products", "featured", "ALTER TABLE products ADD COLUMN featured BOOLEAN DEFAULT FALSE");
   await safeAlter("products", "status", "ALTER TABLE products ADD COLUMN status VARCHAR(40) DEFAULT 'active'");
   await safeAlter("products", "created_at", "ALTER TABLE products ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await safeModify("ALTER TABLE products MODIFY COLUMN status VARCHAR(40) DEFAULT 'active'", "products.status varchar");
+  await safeModify("ALTER TABLE products MODIFY COLUMN status VARCHAR(40) DEFAULT 'active'", "products.status");
 
   await pool.query(`
     UPDATE products 
@@ -216,8 +217,8 @@ async function initDatabase() {
   await safeAlter("orders", "notes", "ALTER TABLE orders ADD COLUMN notes TEXT");
   await safeAlter("orders", "created_at", "ALTER TABLE orders ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
-  await safeModify("ALTER TABLE orders MODIFY COLUMN order_status VARCHAR(40) DEFAULT 'pending'", "orders.order_status varchar");
-  await safeModify("ALTER TABLE orders MODIFY COLUMN payment_status VARCHAR(40) DEFAULT 'pending'", "orders.payment_status varchar");
+  await safeModify("ALTER TABLE orders MODIFY COLUMN order_status VARCHAR(40) DEFAULT 'pending'", "orders.order_status");
+  await safeModify("ALTER TABLE orders MODIFY COLUMN payment_status VARCHAR(40) DEFAULT 'pending'", "orders.payment_status");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS order_items (
@@ -256,7 +257,7 @@ async function initDatabase() {
   await safeAlter("payments", "status", "ALTER TABLE payments ADD COLUMN status VARCHAR(40) DEFAULT 'pending'");
   await safeAlter("payments", "raw_response", "ALTER TABLE payments ADD COLUMN raw_response JSON NULL");
   await safeAlter("payments", "created_at", "ALTER TABLE payments ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await safeModify("ALTER TABLE payments MODIFY COLUMN status VARCHAR(40) DEFAULT 'pending'", "payments.status varchar");
+  await safeModify("ALTER TABLE payments MODIFY COLUMN status VARCHAR(40) DEFAULT 'pending'", "payments.status");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS coupons (
@@ -281,7 +282,7 @@ async function initDatabase() {
     )
   `);
 
-  await safeModify("ALTER TABLE reviews MODIFY COLUMN status VARCHAR(40) DEFAULT 'pending'", "reviews.status varchar");
+  await safeModify("ALTER TABLE reviews MODIFY COLUMN status VARCHAR(40) DEFAULT 'pending'", "reviews.status");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS invoices (
@@ -298,7 +299,7 @@ async function initDatabase() {
   await safeAlter("invoices", "amount", "ALTER TABLE invoices ADD COLUMN amount DECIMAL(12,2)");
   await safeAlter("invoices", "status", "ALTER TABLE invoices ADD COLUMN status VARCHAR(40) DEFAULT 'unpaid'");
   await safeAlter("invoices", "created_at", "ALTER TABLE invoices ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
-  await safeModify("ALTER TABLE invoices MODIFY COLUMN status VARCHAR(40) DEFAULT 'unpaid'", "invoices.status varchar");
+  await safeModify("ALTER TABLE invoices MODIFY COLUMN status VARCHAR(40) DEFAULT 'unpaid'", "invoices.status");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -311,7 +312,7 @@ async function initDatabase() {
     )
   `);
 
-  await safeModify("ALTER TABLE messages MODIFY COLUMN status VARCHAR(40) DEFAULT 'open'", "messages.status varchar");
+  await safeModify("ALTER TABLE messages MODIFY COLUMN status VARCHAR(40) DEFAULT 'open'", "messages.status");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS activity_logs (
@@ -366,16 +367,19 @@ async function initDatabase() {
 
   if (adminRows.length === 0) {
     const hashed = await bcrypt.hash(adminPassword, 12);
+
     await pool.query(
       "INSERT INTO users (name,email,phone,password,role,status) VALUES (?,?,?,?,?,?)",
       [adminName, adminEmail, adminPhone, hashed, "super_admin", "active"]
     );
+
     console.log("Super admin created from .env");
   } else {
     await pool.query(
       "UPDATE users SET role=?, status=?, phone=? WHERE email=?",
       ["super_admin", "active", adminPhone, adminEmail]
     );
+
     console.log("Existing admin account upgraded to super_admin");
   }
 
@@ -384,7 +388,11 @@ async function initDatabase() {
 
 function createToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role
+    },
     process.env.JWT_SECRET || "change_this_secret",
     { expiresIn: "7d" }
   );
@@ -419,32 +427,35 @@ function auth(roles = []) {
   };
 }
 
-function mailerReady() {
-  return Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
-}
-
 async function sendEmail(to, subject, html) {
-  if (!mailerReady()) {
-    console.log("Email skipped. EMAIL_USER or EMAIL_PASS missing.");
-    return;
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: Number(process.env.EMAIL_PORT || 587),
-    secure: false,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+  try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.log("Email skipped: EMAIL_USER or EMAIL_PASS missing.");
+      return false;
     }
-  });
 
-  await transporter.sendMail({
-    from: `"ShopMaster Pro" <${process.env.EMAIL_USER}>`,
-    to,
-    subject,
-    html
-  });
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST || "smtp.gmail.com",
+      port: Number(process.env.EMAIL_PORT || 587),
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: `"ShopMaster Pro" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html
+    });
+
+    return true;
+  } catch (err) {
+    console.log("Email failed but server continued:", err.message);
+    return false;
+  }
 }
 
 async function logAction(userId, action, req) {
@@ -469,45 +480,83 @@ function makeInvoiceCode() {
 
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    let { name, email, phone, password } = req.body;
+
+    name = String(name || "").trim();
+    email = String(email || "").trim().toLowerCase();
+    phone = String(phone || "").trim();
+    password = String(password || "");
+
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, email and password are required" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    const [existing] = await pool.query("SELECT id FROM users WHERE email=?", [email]);
+
+    if (existing.length) {
+      return res.status(400).json({ message: "Email already registered. Please login." });
     }
 
     const hashed = await bcrypt.hash(password, 12);
 
     await pool.query(
       "INSERT INTO users (name,email,phone,password,role,status) VALUES (?,?,?,?,?,?)",
-      [name, email, phone || "", hashed, "customer", "active"]
+      [name, email, phone, hashed, "customer", "active"]
     );
 
-    await sendEmail(email, "Welcome to ShopMaster Pro", `<h2>Welcome ${name}</h2>`);
+    await sendEmail(
+      email,
+      "Welcome to ShopMaster Pro",
+      `<h2>Welcome ${name}</h2><p>Your account was created successfully.</p>`
+    );
 
     res.json({ message: "Account created successfully. You can login now." });
   } catch (err) {
-    res.status(500).json({ message: "Registration failed", error: err.message });
+    console.error("REGISTER ERROR:", err);
+    res.status(500).json({
+      message: "Registration failed",
+      error: err.message
+    });
   }
 });
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
 
     const [rows] = await pool.query("SELECT * FROM users WHERE email=?", [email]);
     const user = rows[0];
 
-    if (!user) return res.status(404).json({ message: "Account not found" });
-    if (user.status !== "active") return res.status(403).json({ message: "Account blocked" });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
 
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ message: "Invalid password" });
+    if (user.status !== "active") {
+      return res.status(403).json({ message: "Account blocked" });
+    }
+
+    const valid = await bcrypt.compare(password, user.password || "");
+
+    if (!valid) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
 
     await pool.query("UPDATE users SET last_login=NOW() WHERE id=?", [user.id]);
 
     const token = createToken(user);
+
     await logAction(user.id, `${user.role} logged in`, req);
 
-    await sendEmail(
+    sendEmail(
       user.email,
       "Login Notification",
       `<h3>Login Notification</h3><p>Your account was logged in successfully.</p>`
@@ -526,17 +575,28 @@ app.post("/api/auth/login", async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ message: "Login failed", error: err.message });
+    console.error("LOGIN ERROR:", err);
+    res.status(500).json({
+      message: "Login failed",
+      error: err.message
+    });
   }
 });
 
 app.post("/api/auth/forgot-password", async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body.email || "").trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
 
     const [rows] = await pool.query("SELECT * FROM users WHERE email=?", [email]);
     const user = rows[0];
-    if (!user) return res.status(404).json({ message: "Email not found" });
+
+    if (!user) {
+      return res.json({ message: "If the email exists, a reset link has been sent." });
+    }
 
     const resetToken = crypto.randomBytes(32).toString("hex");
     const expiry = new Date(Date.now() + 15 * 60 * 1000);
@@ -547,23 +607,43 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       user.id
     ]);
 
-    const link = `${process.env.APP_URL || "http://localhost:" + PORT}?reset=${resetToken}`;
+    const baseUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+    const link = `${baseUrl}?reset=${resetToken}`;
 
-    await sendEmail(
+    const emailSent = await sendEmail(
       user.email,
       "Password Reset",
-      `<h2>Password Reset</h2><a href="${link}">${link}</a>`
+      `<h2>Password Reset</h2><p>Click this link to reset your password:</p><a href="${link}">${link}</a><p>This link expires in 15 minutes.</p>`
     );
 
-    res.json({ message: "Password reset email sent" });
+    console.log("RESET LINK:", link);
+
+    res.json({
+      message: emailSent
+        ? "Password reset email sent."
+        : "Reset link generated. Email is not configured, check Render logs."
+    });
   } catch (err) {
-    res.status(500).json({ message: "Password reset failed", error: err.message });
+    console.error("FORGOT PASSWORD ERROR:", err);
+    res.status(500).json({
+      message: "Password reset failed",
+      error: err.message
+    });
   }
 });
 
 app.post("/api/auth/reset-password", async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const token = String(req.body.token || "").trim();
+    const password = String(req.body.password || "");
+
+    if (!token || !password) {
+      return res.status(400).json({ message: "Token and new password are required" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
 
     const [rows] = await pool.query(
       "SELECT * FROM users WHERE reset_token=? AND reset_token_expiry > NOW()",
@@ -571,7 +651,10 @@ app.post("/api/auth/reset-password", async (req, res) => {
     );
 
     const user = rows[0];
-    if (!user) return res.status(400).json({ message: "Invalid or expired reset token" });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired reset token" });
+    }
 
     const hashed = await bcrypt.hash(password, 12);
 
@@ -584,7 +667,11 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
     res.json({ message: "Password changed successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Password reset failed", error: err.message });
+    console.error("RESET PASSWORD ERROR:", err);
+    res.status(500).json({
+      message: "Password reset failed",
+      error: err.message
+    });
   }
 });
 
@@ -592,7 +679,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
 app.get("/api/products", async (req, res) => {
   try {
-    const search = req.query.search || "";
+    const search = String(req.query.search || "");
 
     const [rows] = await pool.query(
       `
@@ -608,6 +695,7 @@ app.get("/api/products", async (req, res) => {
 
     res.json(rows);
   } catch (err) {
+    console.error("PRODUCTS ERROR:", err);
     res.status(500).json({ message: "Failed to load products", error: err.message });
   }
 });
@@ -635,38 +723,39 @@ app.get("/api/cart", auth(["customer", "admin", "super_admin"]), async (req, res
 
 app.post("/api/cart", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   try {
-    const { product_id, quantity } = req.body;
-    const qty = Math.max(1, Number(quantity || 1));
+    const productId = Number(req.body.product_id);
+    const qty = Math.max(1, Number(req.body.quantity || 1));
 
     const [products] = await pool.query("SELECT * FROM products WHERE id=? AND status='active'", [
-      product_id
+      productId
     ]);
 
     const product = products[0];
+
     if (!product) return res.status(404).json({ message: "Product not found" });
     if (Number(product.stock) < qty) return res.status(400).json({ message: "Insufficient stock" });
 
     const [existing] = await pool.query(
       "SELECT * FROM cart_items WHERE user_id=? AND product_id=?",
-      [req.user.id, product_id]
+      [req.user.id, productId]
     );
 
     if (existing.length) {
-      await pool.query("UPDATE cart_items SET quantity = quantity + ? WHERE user_id=? AND product_id=?", [
-        qty,
-        req.user.id,
-        product_id
-      ]);
+      await pool.query(
+        "UPDATE cart_items SET quantity = quantity + ? WHERE user_id=? AND product_id=?",
+        [qty, req.user.id, productId]
+      );
     } else {
       await pool.query("INSERT INTO cart_items (user_id,product_id,quantity) VALUES (?,?,?)", [
         req.user.id,
-        product_id,
+        productId,
         qty
       ]);
     }
 
     res.json({ message: "Added to cart" });
   } catch (err) {
+    console.error("CART ERROR:", err);
     res.status(500).json({ message: "Cart update failed", error: err.message });
   }
 });
@@ -691,15 +780,17 @@ app.delete("/api/cart/:id", auth(["customer", "admin", "super_admin"]), async (r
 /* WISHLIST */
 
 app.post("/api/wishlist", auth(["customer", "admin", "super_admin"]), async (req, res) => {
+  const productId = Number(req.body.product_id);
+
   const [existing] = await pool.query("SELECT * FROM wishlist WHERE user_id=? AND product_id=?", [
     req.user.id,
-    req.body.product_id
+    productId
   ]);
 
   if (!existing.length) {
     await pool.query("INSERT INTO wishlist (user_id,product_id) VALUES (?,?)", [
       req.user.id,
-      req.body.product_id
+      productId
     ]);
   }
 
@@ -824,6 +915,7 @@ app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, 
     });
   } catch (err) {
     await connection.rollback();
+    console.error("ORDER ERROR:", err);
     res.status(500).json({ message: "Order failed", error: err.message });
   } finally {
     connection.release();
@@ -992,7 +1084,7 @@ app.get("/api/admin/customers", auth(["admin", "super_admin"]), async (req, res)
     FROM users
     LEFT JOIN orders ON users.id = orders.user_id
     WHERE users.role='customer'
-    GROUP BY users.id
+    GROUP BY users.id, users.name, users.email, users.phone, users.status, users.last_login, users.created_at
     ORDER BY users.created_at DESC
   `);
 
