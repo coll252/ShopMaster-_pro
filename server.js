@@ -18,7 +18,7 @@ app.use(
     contentSecurityPolicy: false
   })
 );
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -49,6 +49,34 @@ async function connectDB() {
   console.log("Connected to MySQL / Aiven");
 }
 
+async function columnExists(table, column) {
+  const [rows] = await pool.query(
+    `
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = ?
+    AND TABLE_NAME = ?
+    AND COLUMN_NAME = ?
+    `,
+    [process.env.DB_NAME, table, column]
+  );
+
+  return rows.length > 0;
+}
+
+async function safeAlter(table, column, sql) {
+  try {
+    const exists = await columnExists(table, column);
+
+    if (!exists) {
+      await pool.query(sql);
+      console.log(`Added missing column: ${table}.${column}`);
+    }
+  } catch (err) {
+    console.log(`Could not alter ${table}.${column}: ${err.message}`);
+  }
+}
+
 async function initDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -66,6 +94,15 @@ async function initDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await safeAlter("users", "phone", "ALTER TABLE users ADD COLUMN phone VARCHAR(40)");
+  await safeAlter("users", "role", "ALTER TABLE users ADD COLUMN role ENUM('customer','admin','super_admin') DEFAULT 'customer'");
+  await safeAlter("users", "status", "ALTER TABLE users ADD COLUMN status ENUM('active','blocked') DEFAULT 'active'");
+  await safeAlter("users", "avatar", "ALTER TABLE users ADD COLUMN avatar TEXT");
+  await safeAlter("users", "reset_token", "ALTER TABLE users ADD COLUMN reset_token VARCHAR(255)");
+  await safeAlter("users", "reset_token_expiry", "ALTER TABLE users ADD COLUMN reset_token_expiry DATETIME");
+  await safeAlter("users", "last_login", "ALTER TABLE users ADD COLUMN last_login DATETIME");
+  await safeAlter("users", "created_at", "ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -89,10 +126,19 @@ async function initDatabase() {
       image TEXT,
       featured BOOLEAN DEFAULT FALSE,
       status ENUM('active','draft','archived') DEFAULT 'active',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await safeAlter("products", "category_id", "ALTER TABLE products ADD COLUMN category_id INT NULL");
+  await safeAlter("products", "sku", "ALTER TABLE products ADD COLUMN sku VARCHAR(100)");
+  await safeAlter("products", "description", "ALTER TABLE products ADD COLUMN description TEXT");
+  await safeAlter("products", "discount", "ALTER TABLE products ADD COLUMN discount DECIMAL(12,2) DEFAULT 0");
+  await safeAlter("products", "stock", "ALTER TABLE products ADD COLUMN stock INT DEFAULT 0");
+  await safeAlter("products", "image", "ALTER TABLE products ADD COLUMN image TEXT");
+  await safeAlter("products", "featured", "ALTER TABLE products ADD COLUMN featured BOOLEAN DEFAULT FALSE");
+  await safeAlter("products", "status", "ALTER TABLE products ADD COLUMN status ENUM('active','draft','archived') DEFAULT 'active'");
+  await safeAlter("products", "created_at", "ALTER TABLE products ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS cart_items (
@@ -100,21 +146,19 @@ async function initDatabase() {
       user_id INT NOT NULL,
       product_id INT NOT NULL,
       quantity INT DEFAULT 1,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await safeAlter("cart_items", "quantity", "ALTER TABLE cart_items ADD COLUMN quantity INT DEFAULT 1");
+  await safeAlter("cart_items", "created_at", "ALTER TABLE cart_items ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS wishlist (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
       product_id INT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE KEY unique_wishlist (user_id, product_id),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -133,10 +177,21 @@ async function initDatabase() {
       address TEXT,
       phone VARCHAR(40),
       notes TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await safeAlter("orders", "order_code", "ALTER TABLE orders ADD COLUMN order_code VARCHAR(40) UNIQUE");
+  await safeAlter("orders", "shipping_fee", "ALTER TABLE orders ADD COLUMN shipping_fee DECIMAL(12,2) DEFAULT 0");
+  await safeAlter("orders", "tax", "ALTER TABLE orders ADD COLUMN tax DECIMAL(12,2) DEFAULT 0");
+  await safeAlter("orders", "discount", "ALTER TABLE orders ADD COLUMN discount DECIMAL(12,2) DEFAULT 0");
+  await safeAlter("orders", "payment_method", "ALTER TABLE orders ADD COLUMN payment_method VARCHAR(80)");
+  await safeAlter("orders", "payment_status", "ALTER TABLE orders ADD COLUMN payment_status ENUM('pending','paid','failed','refunded') DEFAULT 'pending'");
+  await safeAlter("orders", "order_status", "ALTER TABLE orders ADD COLUMN order_status ENUM('pending','processing','packed','shipped','delivered','cancelled','returned') DEFAULT 'pending'");
+  await safeAlter("orders", "address", "ALTER TABLE orders ADD COLUMN address TEXT");
+  await safeAlter("orders", "phone", "ALTER TABLE orders ADD COLUMN phone VARCHAR(40)");
+  await safeAlter("orders", "notes", "ALTER TABLE orders ADD COLUMN notes TEXT");
+  await safeAlter("orders", "created_at", "ALTER TABLE orders ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS order_items (
@@ -145,11 +200,11 @@ async function initDatabase() {
       product_id INT NULL,
       product_name VARCHAR(180),
       quantity INT,
-      price DECIMAL(12,2),
-      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+      price DECIMAL(12,2)
     )
   `);
+
+  await safeAlter("order_items", "product_name", "ALTER TABLE order_items ADD COLUMN product_name VARCHAR(180)");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payments (
@@ -165,6 +220,10 @@ async function initDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await safeAlter("payments", "phone", "ALTER TABLE payments ADD COLUMN phone VARCHAR(40)");
+  await safeAlter("payments", "transaction_code", "ALTER TABLE payments ADD COLUMN transaction_code VARCHAR(150)");
+  await safeAlter("payments", "raw_response", "ALTER TABLE payments ADD COLUMN raw_response JSON NULL");
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS coupons (
@@ -230,6 +289,7 @@ async function initDatabase() {
   `);
 
   const [catCount] = await pool.query("SELECT COUNT(*) AS total FROM categories");
+
   if (catCount[0].total === 0) {
     await pool.query(`
       INSERT INTO categories (name, description) VALUES
@@ -241,6 +301,7 @@ async function initDatabase() {
   }
 
   const [productCount] = await pool.query("SELECT COUNT(*) AS total FROM products");
+
   if (productCount[0].total === 0) {
     await pool.query(`
       INSERT INTO products 
@@ -255,7 +316,9 @@ async function initDatabase() {
     `);
   }
 
-  const [adminCount] = await pool.query("SELECT COUNT(*) AS total FROM users WHERE role IN ('admin','super_admin')");
+  const [adminCount] = await pool.query(
+    "SELECT COUNT(*) AS total FROM users WHERE role IN ('admin','super_admin')"
+  );
 
   if (adminCount[0].total === 0) {
     const adminEmail = process.env.ADMIN_EMAIL || "admin@shopmaster.com";
@@ -286,7 +349,7 @@ function createToken(user) {
       email: user.email,
       role: user.role
     },
-    process.env.JWT_SECRET || "fallback_secret_change_me",
+    process.env.JWT_SECRET || "change_this_secret",
     { expiresIn: "7d" }
   );
 }
@@ -295,14 +358,18 @@ function auth(roles = []) {
   return async (req, res, next) => {
     try {
       const header = req.headers.authorization;
-      if (!header) return res.status(401).json({ message: "Login required" });
+
+      if (!header) {
+        return res.status(401).json({ message: "Login required" });
+      }
 
       const token = header.split(" ")[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret_change_me");
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || "change_this_secret");
 
-      const [rows] = await pool.query("SELECT id, email, role, status FROM users WHERE id=?", [
-        decoded.id
-      ]);
+      const [rows] = await pool.query(
+        "SELECT id,email,role,status FROM users WHERE id=?",
+        [decoded.id]
+      );
 
       const user = rows[0];
 
@@ -316,26 +383,9 @@ function auth(roles = []) {
       req.user = user;
       next();
     } catch {
-      res.status(401).json({ message: "Invalid or expired token" });
+      return res.status(401).json({ message: "Invalid or expired token" });
     }
   };
-}
-
-async function logAction(userId, action, req) {
-  try {
-    await pool.query(
-      "INSERT INTO activity_logs (user_id, action, ip_address) VALUES (?,?,?)",
-      [userId || null, action, req?.ip || ""]
-    );
-  } catch {}
-}
-
-function makeOrderCode() {
-  return "ORD-" + Date.now() + "-" + Math.floor(Math.random() * 9999);
-}
-
-function makeInvoiceCode() {
-  return "INV-" + Date.now() + "-" + Math.floor(Math.random() * 9999);
 }
 
 function mailerReady() {
@@ -344,7 +394,7 @@ function mailerReady() {
 
 async function sendEmail(to, subject, html) {
   if (!mailerReady()) {
-    console.log("Email skipped. Configure EMAIL_USER and EMAIL_PASS.");
+    console.log("Email skipped. EMAIL_USER or EMAIL_PASS missing.");
     return;
   }
 
@@ -366,7 +416,24 @@ async function sendEmail(to, subject, html) {
   });
 }
 
-/* ========================= AUTH ========================= */
+async function logAction(userId, action, req) {
+  try {
+    await pool.query(
+      "INSERT INTO activity_logs (user_id, action, ip_address) VALUES (?,?,?)",
+      [userId || null, action, req?.ip || ""]
+    );
+  } catch {}
+}
+
+function makeOrderCode() {
+  return "ORD-" + Date.now() + "-" + Math.floor(Math.random() * 9999);
+}
+
+function makeInvoiceCode() {
+  return "INV-" + Date.now() + "-" + Math.floor(Math.random() * 9999);
+}
+
+/* AUTH */
 
 app.post("/api/auth/register", async (req, res) => {
   try {
@@ -386,7 +453,7 @@ app.post("/api/auth/register", async (req, res) => {
     await sendEmail(
       email,
       "Welcome to ShopMaster Pro",
-      `<h2>Welcome ${name}</h2><p>Your customer account has been created successfully.</p>`
+      `<h2>Welcome ${name}</h2><p>Your customer account was created successfully.</p>`
     );
 
     res.json({ message: "Account created successfully. You can login now." });
@@ -417,7 +484,7 @@ app.post("/api/auth/login", async (req, res) => {
     await sendEmail(
       user.email,
       "Login Notification",
-      `<h3>Login Notification</h3><p>Your account was logged in successfully.</p><p>If this was not you, reset your password immediately.</p>`
+      `<h3>Login Notification</h3><p>Your account was logged in successfully.</p>`
     );
 
     res.json({
@@ -459,7 +526,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     await sendEmail(
       user.email,
       "Password Reset",
-      `<h2>Password Reset</h2><p>Click the link below to reset your password:</p><a href="${link}">${link}</a><p>This link expires in 15 minutes.</p>`
+      `<h2>Password Reset</h2><p>Click below to reset your password:</p><a href="${link}">${link}</a>`
     );
 
     res.json({ message: "Password reset email sent" });
@@ -478,6 +545,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
     );
 
     const user = rows[0];
+
     if (!user) return res.status(400).json({ message: "Invalid or expired reset token" });
 
     const hashed = await bcrypt.hash(password, 12);
@@ -487,11 +555,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
       [hashed, user.id]
     );
 
-    await sendEmail(
-      user.email,
-      "Password Changed",
-      `<p>Your password was changed successfully.</p>`
-    );
+    await sendEmail(user.email, "Password Changed", `<p>Your password was changed successfully.</p>`);
 
     res.json({ message: "Password changed successfully" });
   } catch (err) {
@@ -508,7 +572,7 @@ app.get("/api/auth/me", auth(), async (req, res) => {
   res.json(rows[0]);
 });
 
-/* ========================= CUSTOMER PRODUCTS ========================= */
+/* PRODUCTS */
 
 app.get("/api/products", async (req, res) => {
   try {
@@ -548,7 +612,7 @@ app.get("/api/categories", async (req, res) => {
   res.json(rows);
 });
 
-/* ========================= CART ========================= */
+/* CART */
 
 app.get("/api/cart", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   const [rows] = await pool.query(
@@ -567,12 +631,12 @@ app.get("/api/cart", auth(["customer", "admin", "super_admin"]), async (req, res
 app.post("/api/cart", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   try {
     const { product_id, quantity } = req.body;
-
     const qty = Number(quantity || 1);
 
-    const [products] = await pool.query("SELECT * FROM products WHERE id=? AND status='active'", [
-      product_id
-    ]);
+    const [products] = await pool.query(
+      "SELECT * FROM products WHERE id=? AND status='active'",
+      [product_id]
+    );
 
     const product = products[0];
 
@@ -619,7 +683,7 @@ app.delete("/api/cart/:id", auth(["customer", "admin", "super_admin"]), async (r
   res.json({ message: "Removed from cart" });
 });
 
-/* ========================= WISHLIST ========================= */
+/* WISHLIST */
 
 app.get("/api/wishlist", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   const [rows] = await pool.query(
@@ -636,10 +700,17 @@ app.get("/api/wishlist", auth(["customer", "admin", "super_admin"]), async (req,
 });
 
 app.post("/api/wishlist", auth(["customer", "admin", "super_admin"]), async (req, res) => {
-  await pool.query("INSERT IGNORE INTO wishlist (user_id,product_id) VALUES (?,?)", [
-    req.user.id,
-    req.body.product_id
-  ]);
+  const [existing] = await pool.query(
+    "SELECT * FROM wishlist WHERE user_id=? AND product_id=?",
+    [req.user.id, req.body.product_id]
+  );
+
+  if (!existing.length) {
+    await pool.query("INSERT INTO wishlist (user_id,product_id) VALUES (?,?)", [
+      req.user.id,
+      req.body.product_id
+    ]);
+  }
 
   res.json({ message: "Added to wishlist" });
 });
@@ -653,7 +724,7 @@ app.delete("/api/wishlist/:productId", auth(["customer", "admin", "super_admin"]
   res.json({ message: "Removed from wishlist" });
 });
 
-/* ========================= ORDERS ========================= */
+/* ORDERS */
 
 app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   const connection = await pool.getConnection();
@@ -702,7 +773,7 @@ app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, 
       }
     }
 
-    const tax = subtotal * 0.0;
+    const tax = 0;
     const shipping_fee = subtotal > 5000 ? 0 : 300;
     const total = subtotal + tax + shipping_fee - discount;
     const orderCode = makeOrderCode();
@@ -713,18 +784,7 @@ app.post("/api/orders", auth(["customer", "admin", "super_admin"]), async (req, 
       (order_code,user_id,total,shipping_fee,tax,discount,payment_method,address,phone,notes)
       VALUES (?,?,?,?,?,?,?,?,?,?)
       `,
-      [
-        orderCode,
-        req.user.id,
-        total,
-        shipping_fee,
-        tax,
-        discount,
-        payment_method,
-        address,
-        phone,
-        notes || ""
-      ]
+      [orderCode, req.user.id, total, shipping_fee, tax, discount, payment_method, address, phone, notes || ""]
     );
 
     const orderId = orderResult.insertId;
@@ -809,7 +869,7 @@ app.get("/api/my-orders/:id/items", auth(["customer", "admin", "super_admin"]), 
   res.json(rows);
 });
 
-/* ========================= CUSTOMER SUPPORT ========================= */
+/* MESSAGES */
 
 app.post("/api/messages", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   const { subject, message } = req.body;
@@ -823,14 +883,16 @@ app.post("/api/messages", auth(["customer", "admin", "super_admin"]), async (req
   res.json({ message: "Message sent to support" });
 });
 
-/* ========================= ADMIN DASHBOARD ========================= */
+/* ADMIN */
 
 app.get("/api/admin/stats", auth(["admin", "super_admin"]), async (req, res) => {
   const [[users]] = await pool.query("SELECT COUNT(*) AS total FROM users WHERE role='customer'");
   const [[products]] = await pool.query("SELECT COUNT(*) AS total FROM products");
   const [[orders]] = await pool.query("SELECT COUNT(*) AS total FROM orders");
   const [[pending]] = await pool.query("SELECT COUNT(*) AS total FROM orders WHERE order_status='pending'");
-  const [[revenue]] = await pool.query("SELECT COALESCE(SUM(total),0) AS total FROM orders WHERE payment_status='paid'");
+  const [[revenue]] = await pool.query(
+    "SELECT COALESCE(SUM(total),0) AS total FROM orders WHERE payment_status='paid'"
+  );
   const [[todaySales]] = await pool.query(
     "SELECT COALESCE(SUM(total),0) AS total FROM orders WHERE DATE(created_at)=CURDATE()"
   );
@@ -870,19 +932,15 @@ app.get("/api/admin/analytics", auth(["admin", "super_admin"]), async (req, res)
     LIMIT 6
   `);
 
-  const [traffic] = await pool.query(`
-    SELECT 'Direct' AS source, 143382 AS value
-    UNION SELECT 'Referral', 87974
-    UNION SELECT 'Social Media', 45211
-    UNION SELECT 'Twitter', 21893
-    UNION SELECT 'Facebook', 21893
-  `);
+  const traffic = [
+    { source: "Direct", value: 143382 },
+    { source: "Referral", value: 87974 },
+    { source: "Social Media", value: 45211 },
+    { source: "Twitter", value: 21893 },
+    { source: "Facebook", value: 21893 }
+  ];
 
-  res.json({
-    monthly,
-    topProducts,
-    traffic
-  });
+  res.json({ monthly, topProducts, traffic });
 });
 
 app.get("/api/admin/products", auth(["admin", "super_admin"]), async (req, res) => {
@@ -1080,7 +1138,10 @@ app.post("/api/admin/coupons", auth(["admin", "super_admin"]), async (req, res) 
 app.put("/api/admin/coupons/:id", auth(["admin", "super_admin"]), async (req, res) => {
   const { active } = req.body;
 
-  await pool.query("UPDATE coupons SET active=? WHERE id=?", [active ? true : false, req.params.id]);
+  await pool.query("UPDATE coupons SET active=? WHERE id=?", [
+    active ? true : false,
+    req.params.id
+  ]);
 
   res.json({ message: "Coupon updated" });
 });
@@ -1097,7 +1158,7 @@ app.get("/api/admin/logs", auth(["admin", "super_admin"]), async (req, res) => {
   res.json(rows);
 });
 
-/* ========================= SUPER ADMIN ========================= */
+/* SUPER ADMIN */
 
 app.post("/api/super/admins", auth(["super_admin"]), async (req, res) => {
   const { name, email, phone, password, role } = req.body;
@@ -1120,7 +1181,7 @@ app.get("/api/super/admins", auth(["super_admin"]), async (req, res) => {
   res.json(rows);
 });
 
-/* ========================= PAYMENT PLACEHOLDER ========================= */
+/* PAYMENT */
 
 app.post("/api/payments/mpesa/stk", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   const { order_id, phone, amount } = req.body;
@@ -1139,13 +1200,13 @@ app.post("/api/payments/mpesa/callback", async (req, res) => {
   res.json({ ResultCode: 0, ResultDesc: "Callback received" });
 });
 
-/* ========================= FRONTEND ========================= */
+/* FRONTEND */
 
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-/* ========================= START SERVER ========================= */
+/* START */
 
 async function start() {
   try {
