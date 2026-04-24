@@ -13,17 +13,12 @@ const crypto = require("crypto");
 const app = express();
 
 app.use(cors());
-app.use(
-  helmet({
-    contentSecurityPolicy: false
-  })
-);
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 5000;
-
 let pool;
 
 const dbConfig = {
@@ -37,9 +32,7 @@ const dbConfig = {
   queueLimit: 0,
   ssl:
     process.env.DB_SSL === "true"
-      ? {
-          rejectUnauthorized: false
-        }
+      ? { rejectUnauthorized: false }
       : undefined
 };
 
@@ -60,20 +53,27 @@ async function columnExists(table, column) {
     `,
     [process.env.DB_NAME, table, column]
   );
-
   return rows.length > 0;
 }
 
 async function safeAlter(table, column, sql) {
   try {
     const exists = await columnExists(table, column);
-
     if (!exists) {
       await pool.query(sql);
       console.log(`Added missing column: ${table}.${column}`);
     }
   } catch (err) {
     console.log(`Could not alter ${table}.${column}: ${err.message}`);
+  }
+}
+
+async function safeModify(sql, label) {
+  try {
+    await pool.query(sql);
+    console.log(`Checked/modified: ${label}`);
+  } catch (err) {
+    console.log(`Could not modify ${label}: ${err.message}`);
   }
 }
 
@@ -96,13 +96,23 @@ async function initDatabase() {
   `);
 
   await safeAlter("users", "phone", "ALTER TABLE users ADD COLUMN phone VARCHAR(40)");
-  await safeAlter("users", "role", "ALTER TABLE users ADD COLUMN role ENUM('customer','admin','super_admin') DEFAULT 'customer'");
-  await safeAlter("users", "status", "ALTER TABLE users ADD COLUMN status ENUM('active','blocked') DEFAULT 'active'");
+  await safeAlter("users", "role", "ALTER TABLE users ADD COLUMN role VARCHAR(40) DEFAULT 'customer'");
+  await safeAlter("users", "status", "ALTER TABLE users ADD COLUMN status VARCHAR(40) DEFAULT 'active'");
   await safeAlter("users", "avatar", "ALTER TABLE users ADD COLUMN avatar TEXT");
   await safeAlter("users", "reset_token", "ALTER TABLE users ADD COLUMN reset_token VARCHAR(255)");
   await safeAlter("users", "reset_token_expiry", "ALTER TABLE users ADD COLUMN reset_token_expiry DATETIME");
   await safeAlter("users", "last_login", "ALTER TABLE users ADD COLUMN last_login DATETIME");
   await safeAlter("users", "created_at", "ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+
+  await safeModify(
+    `ALTER TABLE users MODIFY COLUMN role ENUM('customer','admin','super_admin') DEFAULT 'customer'`,
+    "users.role enum"
+  );
+
+  await safeModify(
+    `ALTER TABLE users MODIFY COLUMN status ENUM('active','blocked') DEFAULT 'active'`,
+    "users.status enum"
+  );
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -137,8 +147,13 @@ async function initDatabase() {
   await safeAlter("products", "stock", "ALTER TABLE products ADD COLUMN stock INT DEFAULT 0");
   await safeAlter("products", "image", "ALTER TABLE products ADD COLUMN image TEXT");
   await safeAlter("products", "featured", "ALTER TABLE products ADD COLUMN featured BOOLEAN DEFAULT FALSE");
-  await safeAlter("products", "status", "ALTER TABLE products ADD COLUMN status ENUM('active','draft','archived') DEFAULT 'active'");
+  await safeAlter("products", "status", "ALTER TABLE products ADD COLUMN status VARCHAR(40) DEFAULT 'active'");
   await safeAlter("products", "created_at", "ALTER TABLE products ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+
+  await safeModify(
+    `ALTER TABLE products MODIFY COLUMN status ENUM('active','draft','archived') DEFAULT 'active'`,
+    "products.status enum"
+  );
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS cart_items (
@@ -165,7 +180,7 @@ async function initDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      order_code VARCHAR(40) UNIQUE,
+      order_code VARCHAR(80) UNIQUE,
       user_id INT NULL,
       total DECIMAL(12,2) DEFAULT 0,
       shipping_fee DECIMAL(12,2) DEFAULT 0,
@@ -181,17 +196,27 @@ async function initDatabase() {
     )
   `);
 
-  await safeAlter("orders", "order_code", "ALTER TABLE orders ADD COLUMN order_code VARCHAR(40) UNIQUE");
+  await safeAlter("orders", "order_code", "ALTER TABLE orders ADD COLUMN order_code VARCHAR(80) UNIQUE");
   await safeAlter("orders", "shipping_fee", "ALTER TABLE orders ADD COLUMN shipping_fee DECIMAL(12,2) DEFAULT 0");
   await safeAlter("orders", "tax", "ALTER TABLE orders ADD COLUMN tax DECIMAL(12,2) DEFAULT 0");
   await safeAlter("orders", "discount", "ALTER TABLE orders ADD COLUMN discount DECIMAL(12,2) DEFAULT 0");
   await safeAlter("orders", "payment_method", "ALTER TABLE orders ADD COLUMN payment_method VARCHAR(80)");
-  await safeAlter("orders", "payment_status", "ALTER TABLE orders ADD COLUMN payment_status ENUM('pending','paid','failed','refunded') DEFAULT 'pending'");
-  await safeAlter("orders", "order_status", "ALTER TABLE orders ADD COLUMN order_status ENUM('pending','processing','packed','shipped','delivered','cancelled','returned') DEFAULT 'pending'");
+  await safeAlter("orders", "payment_status", "ALTER TABLE orders ADD COLUMN payment_status VARCHAR(40) DEFAULT 'pending'");
+  await safeAlter("orders", "order_status", "ALTER TABLE orders ADD COLUMN order_status VARCHAR(40) DEFAULT 'pending'");
   await safeAlter("orders", "address", "ALTER TABLE orders ADD COLUMN address TEXT");
   await safeAlter("orders", "phone", "ALTER TABLE orders ADD COLUMN phone VARCHAR(40)");
   await safeAlter("orders", "notes", "ALTER TABLE orders ADD COLUMN notes TEXT");
   await safeAlter("orders", "created_at", "ALTER TABLE orders ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+
+  await safeModify(
+    `ALTER TABLE orders MODIFY COLUMN order_status ENUM('pending','processing','packed','shipped','delivered','cancelled','returned') DEFAULT 'pending'`,
+    "orders.order_status enum"
+  );
+
+  await safeModify(
+    `ALTER TABLE orders MODIFY COLUMN payment_status ENUM('pending','paid','failed','refunded') DEFAULT 'pending'`,
+    "orders.payment_status enum"
+  );
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS order_items (
@@ -224,6 +249,12 @@ async function initDatabase() {
   await safeAlter("payments", "phone", "ALTER TABLE payments ADD COLUMN phone VARCHAR(40)");
   await safeAlter("payments", "transaction_code", "ALTER TABLE payments ADD COLUMN transaction_code VARCHAR(150)");
   await safeAlter("payments", "raw_response", "ALTER TABLE payments ADD COLUMN raw_response JSON NULL");
+  await safeAlter("payments", "status", "ALTER TABLE payments ADD COLUMN status VARCHAR(40) DEFAULT 'pending'");
+
+  await safeModify(
+    `ALTER TABLE payments MODIFY COLUMN status ENUM('pending','paid','failed','refunded') DEFAULT 'pending'`,
+    "payments.status enum"
+  );
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS coupons (
@@ -259,6 +290,15 @@ async function initDatabase() {
     )
   `);
 
+  await safeAlter("invoices", "invoice_code", "ALTER TABLE invoices ADD COLUMN invoice_code VARCHAR(80)");
+  await safeAlter("invoices", "amount", "ALTER TABLE invoices ADD COLUMN amount DECIMAL(12,2)");
+  await safeAlter("invoices", "status", "ALTER TABLE invoices ADD COLUMN status VARCHAR(40) DEFAULT 'unpaid'");
+
+  await safeModify(
+    `ALTER TABLE invoices MODIFY COLUMN status ENUM('unpaid','paid','cancelled') DEFAULT 'unpaid'`,
+    "invoices.status enum"
+  );
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -289,7 +329,6 @@ async function initDatabase() {
   `);
 
   const [catCount] = await pool.query("SELECT COUNT(*) AS total FROM categories");
-
   if (catCount[0].total === 0) {
     await pool.query(`
       INSERT INTO categories (name, description) VALUES
@@ -301,7 +340,6 @@ async function initDatabase() {
   }
 
   const [productCount] = await pool.query("SELECT COUNT(*) AS total FROM products");
-
   if (productCount[0].total === 0) {
     await pool.query(`
       INSERT INTO products 
@@ -316,16 +354,14 @@ async function initDatabase() {
     `);
   }
 
-  const [adminCount] = await pool.query(
-    "SELECT COUNT(*) AS total FROM users WHERE role IN ('admin','super_admin')"
-  );
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@shopmaster.com";
+  const adminPassword = process.env.ADMIN_PASSWORD || "Admin12345";
+  const adminName = process.env.ADMIN_NAME || "Main Admin";
+  const adminPhone = process.env.ADMIN_PHONE || "254700000000";
 
-  if (adminCount[0].total === 0) {
-    const adminEmail = process.env.ADMIN_EMAIL || "admin@shopmaster.com";
-    const adminPassword = process.env.ADMIN_PASSWORD || "Admin12345";
-    const adminName = process.env.ADMIN_NAME || "Main Admin";
-    const adminPhone = process.env.ADMIN_PHONE || "254700000000";
+  const [adminRows] = await pool.query("SELECT * FROM users WHERE email=?", [adminEmail]);
 
+  if (adminRows.length === 0) {
     const hashed = await bcrypt.hash(adminPassword, 12);
 
     await pool.query(
@@ -337,6 +373,17 @@ async function initDatabase() {
     );
 
     console.log("Super admin created from .env");
+  } else {
+    await pool.query(
+      `
+      UPDATE users 
+      SET role='super_admin', status='active', phone=COALESCE(phone, ?)
+      WHERE email=?
+      `,
+      [adminPhone, adminEmail]
+    );
+
+    console.log("Existing admin account upgraded to super_admin");
   }
 
   console.log("Database tables ready");
@@ -358,10 +405,7 @@ function auth(roles = []) {
   return async (req, res, next) => {
     try {
       const header = req.headers.authorization;
-
-      if (!header) {
-        return res.status(401).json({ message: "Login required" });
-      }
+      if (!header) return res.status(401).json({ message: "Login required" });
 
       const token = header.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET || "change_this_secret");
@@ -563,43 +607,23 @@ app.post("/api/auth/reset-password", async (req, res) => {
   }
 });
 
-app.get("/api/auth/me", auth(), async (req, res) => {
-  const [rows] = await pool.query(
-    "SELECT id,name,email,phone,role,status,avatar,last_login,created_at FROM users WHERE id=?",
-    [req.user.id]
-  );
-
-  res.json(rows[0]);
-});
-
 /* PRODUCTS */
 
 app.get("/api/products", async (req, res) => {
   try {
     const search = req.query.search || "";
-    const category = req.query.category || "";
-    const min = req.query.min || 0;
-    const max = req.query.max || 999999999;
 
-    let sql = `
+    const [rows] = await pool.query(
+      `
       SELECT products.*, categories.name AS category_name
       FROM products
       LEFT JOIN categories ON products.category_id = categories.id
       WHERE products.status='active'
       AND (products.name LIKE ? OR products.description LIKE ? OR products.sku LIKE ?)
-      AND (products.price - products.discount) BETWEEN ? AND ?
-    `;
-
-    const params = [`%${search}%`, `%${search}%`, `%${search}%`, min, max];
-
-    if (category) {
-      sql += " AND products.category_id=?";
-      params.push(category);
-    }
-
-    sql += " ORDER BY products.created_at DESC";
-
-    const [rows] = await pool.query(sql, params);
+      ORDER BY products.created_at DESC
+      `,
+      [`%${search}%`, `%${search}%`, `%${search}%`]
+    );
 
     res.json(rows);
   } catch (err) {
@@ -685,20 +709,6 @@ app.delete("/api/cart/:id", auth(["customer", "admin", "super_admin"]), async (r
 
 /* WISHLIST */
 
-app.get("/api/wishlist", auth(["customer", "admin", "super_admin"]), async (req, res) => {
-  const [rows] = await pool.query(
-    `
-    SELECT wishlist.*, products.name, products.price, products.discount, products.image
-    FROM wishlist
-    JOIN products ON wishlist.product_id = products.id
-    WHERE wishlist.user_id=?
-    `,
-    [req.user.id]
-  );
-
-  res.json(rows);
-});
-
 app.post("/api/wishlist", auth(["customer", "admin", "super_admin"]), async (req, res) => {
   const [existing] = await pool.query(
     "SELECT * FROM wishlist WHERE user_id=? AND product_id=?",
@@ -713,15 +723,6 @@ app.post("/api/wishlist", auth(["customer", "admin", "super_admin"]), async (req
   }
 
   res.json({ message: "Added to wishlist" });
-});
-
-app.delete("/api/wishlist/:productId", auth(["customer", "admin", "super_admin"]), async (req, res) => {
-  await pool.query("DELETE FROM wishlist WHERE user_id=? AND product_id=?", [
-    req.user.id,
-    req.params.productId
-  ]);
-
-  res.json({ message: "Removed from wishlist" });
 });
 
 /* ORDERS */
@@ -855,20 +856,6 @@ app.get("/api/my-orders", auth(["customer", "admin", "super_admin"]), async (req
   res.json(rows);
 });
 
-app.get("/api/my-orders/:id/items", auth(["customer", "admin", "super_admin"]), async (req, res) => {
-  const [rows] = await pool.query(
-    `
-    SELECT order_items.*
-    FROM order_items
-    JOIN orders ON order_items.order_id = orders.id
-    WHERE order_items.order_id=? AND orders.user_id=?
-    `,
-    [req.params.id, req.user.id]
-  );
-
-  res.json(rows);
-});
-
 /* MESSAGES */
 
 app.post("/api/messages", auth(["customer", "admin", "super_admin"]), async (req, res) => {
@@ -932,15 +919,17 @@ app.get("/api/admin/analytics", auth(["admin", "super_admin"]), async (req, res)
     LIMIT 6
   `);
 
-  const traffic = [
-    { source: "Direct", value: 143382 },
-    { source: "Referral", value: 87974 },
-    { source: "Social Media", value: 45211 },
-    { source: "Twitter", value: 21893 },
-    { source: "Facebook", value: 21893 }
-  ];
-
-  res.json({ monthly, topProducts, traffic });
+  res.json({
+    monthly,
+    topProducts,
+    traffic: [
+      { source: "Direct", value: 143382 },
+      { source: "Referral", value: 87974 },
+      { source: "Social Media", value: 45211 },
+      { source: "Twitter", value: 21893 },
+      { source: "Facebook", value: 21893 }
+    ]
+  });
 });
 
 app.get("/api/admin/products", auth(["admin", "super_admin"]), async (req, res) => {
@@ -983,34 +972,6 @@ app.post("/api/admin/products", auth(["admin", "super_admin"]), async (req, res)
   res.json({ message: "Product added successfully" });
 });
 
-app.put("/api/admin/products/:id", auth(["admin", "super_admin"]), async (req, res) => {
-  const { category_id, name, sku, description, price, discount, stock, image, featured, status } =
-    req.body;
-
-  await pool.query(
-    `
-    UPDATE products
-    SET category_id=?, name=?, sku=?, description=?, price=?, discount=?, stock=?, image=?, featured=?, status=?
-    WHERE id=?
-    `,
-    [
-      category_id || null,
-      name,
-      sku || "",
-      description || "",
-      price || 0,
-      discount || 0,
-      stock || 0,
-      image || "",
-      featured ? true : false,
-      status || "active",
-      req.params.id
-    ]
-  );
-
-  res.json({ message: "Product updated successfully" });
-});
-
 app.delete("/api/admin/products/:id", auth(["admin", "super_admin"]), async (req, res) => {
   await pool.query("DELETE FROM products WHERE id=?", [req.params.id]);
   res.json({ message: "Product deleted successfully" });
@@ -1034,26 +995,6 @@ app.put("/api/admin/orders/:id", auth(["admin", "super_admin"]), async (req, res
     "UPDATE orders SET order_status=?, payment_status=? WHERE id=?",
     [order_status, payment_status, req.params.id]
   );
-
-  const [orders] = await pool.query(
-    `
-    SELECT orders.*, users.email, users.name
-    FROM orders
-    LEFT JOIN users ON orders.user_id = users.id
-    WHERE orders.id=?
-    `,
-    [req.params.id]
-  );
-
-  const order = orders[0];
-
-  if (order?.email) {
-    await sendEmail(
-      order.email,
-      "Order Status Updated",
-      `<h2>Hello ${order.name || ""}</h2><p>Your order ${order.order_code} is now <b>${order_status}</b>.</p><p>Payment status: ${payment_status}</p>`
-    );
-  }
 
   res.json({ message: "Order updated successfully" });
 });
@@ -1080,17 +1021,6 @@ app.get("/api/admin/customers", auth(["admin", "super_admin"]), async (req, res)
   res.json(rows);
 });
 
-app.put("/api/admin/customers/:id/status", auth(["admin", "super_admin"]), async (req, res) => {
-  const { status } = req.body;
-
-  await pool.query("UPDATE users SET status=? WHERE id=? AND role='customer'", [
-    status,
-    req.params.id
-  ]);
-
-  res.json({ message: "Customer status updated" });
-});
-
 app.get("/api/admin/invoices", auth(["admin", "super_admin"]), async (req, res) => {
   const [rows] = await pool.query(`
     SELECT invoices.*, orders.order_code, users.name, users.email
@@ -1114,11 +1044,6 @@ app.get("/api/admin/messages", auth(["admin", "super_admin"]), async (req, res) 
   res.json(rows);
 });
 
-app.put("/api/admin/messages/:id", auth(["admin", "super_admin"]), async (req, res) => {
-  await pool.query("UPDATE messages SET status=? WHERE id=?", [req.body.status, req.params.id]);
-  res.json({ message: "Message updated" });
-});
-
 app.get("/api/admin/coupons", auth(["admin", "super_admin"]), async (req, res) => {
   const [rows] = await pool.query("SELECT * FROM coupons ORDER BY created_at DESC");
   res.json(rows);
@@ -1135,17 +1060,6 @@ app.post("/api/admin/coupons", auth(["admin", "super_admin"]), async (req, res) 
   res.json({ message: "Coupon created" });
 });
 
-app.put("/api/admin/coupons/:id", auth(["admin", "super_admin"]), async (req, res) => {
-  const { active } = req.body;
-
-  await pool.query("UPDATE coupons SET active=? WHERE id=?", [
-    active ? true : false,
-    req.params.id
-  ]);
-
-  res.json({ message: "Coupon updated" });
-});
-
 app.get("/api/admin/logs", auth(["admin", "super_admin"]), async (req, res) => {
   const [rows] = await pool.query(`
     SELECT activity_logs.*, users.name, users.email
@@ -1154,29 +1068,6 @@ app.get("/api/admin/logs", auth(["admin", "super_admin"]), async (req, res) => {
     ORDER BY activity_logs.created_at DESC
     LIMIT 100
   `);
-
-  res.json(rows);
-});
-
-/* SUPER ADMIN */
-
-app.post("/api/super/admins", auth(["super_admin"]), async (req, res) => {
-  const { name, email, phone, password, role } = req.body;
-
-  const hashed = await bcrypt.hash(password, 12);
-
-  await pool.query(
-    "INSERT INTO users (name,email,phone,password,role,status) VALUES (?,?,?,?,?,?)",
-    [name, email, phone || "", hashed, role || "admin", "active"]
-  );
-
-  res.json({ message: "Admin created successfully" });
-});
-
-app.get("/api/super/admins", auth(["super_admin"]), async (req, res) => {
-  const [rows] = await pool.query(
-    "SELECT id,name,email,phone,role,status,last_login,created_at FROM users WHERE role IN ('admin','super_admin') ORDER BY created_at DESC"
-  );
 
   res.json(rows);
 });
