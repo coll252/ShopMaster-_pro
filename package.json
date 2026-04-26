@@ -1,41 +1,30 @@
 {
-  "name": "ecommerce-dashboard-backend",
+  "name": "ecommerce-dashboard-system",
   "version": "1.0.0",
-  "description": "Advanced E-commerce Dashboard Backend (Node.js + MySQL)",
+  "description": "Full ecommerce dashboard backend with MySQL, authentication, Gmail email verification, password reset, and M-Pesa STK Push integration.",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "echo \"No build step required\"",
-    "postinstall": "echo \"Dependencies installed\""
-  },
-  "keywords": [
-    "ecommerce",
-    "dashboard",
-    "nodejs",
-    "mysql",
-    "api",
-    "backend",
-    "render",
-    "aiven"
-  ],
-  "author": "Your Name",
-  "license": "MIT",
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "express-rate-limit": "^7.3.0",
-    "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.10.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
+    "build": "echo \"No build required\""
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.5",
+    "nodemailer": "^6.9.16"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
   }
 }
